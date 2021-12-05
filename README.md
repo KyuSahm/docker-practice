@@ -84,7 +84,7 @@ ENTRYPOINT ["node", "app.js"]
     - Ubuntu/CentOS Server에 Docker 설치하기 (실제 사이트에서는 Ubuntu와 CentOS의 비율이 비슷)
   - 옵션 2: Windows 10에 DockerDesktop 설치
 
-### VirtualBox 설치 및 Network 구성
+### VirtualBox 설치, Network 구성 그리고, 가상머신 만들기
 - Step 01: VirtualBox(Hypervisor의 일종) 다운로드 후 설치
   - https://www.virtualbox.org
 - Step 02: Virbual Box의 Network 구성
@@ -110,7 +110,7 @@ docker1  TCP      127.0.0.1   106         10.100.0.106   22
     - 머신 폴더: D:\VirtualBox VMs
     - 종류: Linux
     - 버전: Unbuntu (64-bit)
-  - 메모리(2GB)와 Disk(20GB)를 제외하고 기본 설정으로 설치
+  - 메모리(4GB)와 Disk(20GB)를 제외하고 기본 설정으로 설치
   - 설치 완료 후, ``docker-ubuntu`` 선택 후, 설정 버튼 클릭
     - 시스템 > 프로세서: CPU 개수를 2개로 조정
     - 시스템 > 마더보드: 부팅 순서에 플로피 해제
@@ -130,3 +130,63 @@ docker1  TCP      127.0.0.1   106         10.100.0.106   22
     - 네트워크 > 어댑터 1
       - 다음에 연결됨: ``NAT``를 ``NAT 네트워크``로 변경      
       - 이름: ``docker-network`` 선택
+
+### VM에 Ubuntu 20.04 설치하고 기본 환경 구성하기
+#### Ubuntu 20.04 다운로드 후 설치
+- 다운로드: https://ubuntu.com/download/desktop
+  - Desktop version을 다운로드: Server Version은 GUI가 없음
+  - 20.04.XX LTS(Long Term Support-10년)을 다운로드
+- VirtualBox에서 해당 Virtual Machine를 선택
+  - 저장소 > 광학드라이브 > 디스크 파일 선택 > Ubuntu 파일 선택
+  - 시작 버튼을 누르면 설치가 시작됨
+- 설치 순서
+  - 언어 선택(한국어) > Ubuntu 설치 > 키보드 선택 > 일반 설치 > 새로 만든 디스크 지우고 설치
+  - 지금 설치 > 포맷 > 계속 설치 > 타임존 설정 > 관리자 계정 생성:gusami/******
+  - 당신은 누구십니까?
+    - 이름: gusami
+    - 컴퓨터 이름: docker-ubuntu.example.com
+    - 사용자 이름: gusami
+  - 설치 진행(약 20분 소요)
+- 설치 완료되면 리부팅 진행
+#### 설치 후 환경 구성
+- GUI로그인: gusami/******
+- 화면 우측 상단에 네트워크 마크를 클릭하면 설정으로 이동
+  - 디스플레이 > 해상도를 1280 * 960으로 조정
+- 서버 구성: 네트워크 설정 > IPv4 > 수동
+  - 주소: 10.100.0.105, Netmaks: 24, 게이트웨이: 10.100.0.1 네임서버: 10.100.0.1
+    - 터미널에서 ``ip addr`` 명령어를 이용해서 바뀐 주소 확인
+  - hostname 변경
+    - ``$vi /etc/hostname``에서 ``docker-Ubuntu.example.com``로 수정
+  - /etc/hosts 파일에 호스트 정보 추가
+```bash
+$sudo vi /etc/hosts
+127.0.0.1      localhost
+10.100.0.105   docker-ubuntu.example.com    docker-ubuntu
+10.100.0.106   docker-centos.example.com    docker-centos
+
+# The following lines are desirable for IPv6 capable hosts
+....
+# Google DNS(8.8.8.8)를 PING 테스트를 진행해 봄
+$ping -c 3 8.8.8.8
+```  
+- Text 부팅으로 수정: GUI 환경의 부팅은 리소스를 많이 먹고, 속도도 늦음
+  - ``$systemctl set-default multi-user.target``
+  - 만약, GUI 부팅으로 되돌리고 싶으면, ``$systemctl isolate graphical.target`` 수행
+- root password 설정: 기본적으로 암호가 설정되어 있지 않아서 root 계정을 사용 못함
+  - ``$sudo passwd root``
+  - ``$su - root``: root 계정으로 전환
+- SSH 서버 설치 후 운영
+  - ``$apt-get update``
+  - ``$apt-get install -y openssh-server curl vim tree``
+  - 설치 후, ssh daemon 상태 체크
+    - ``$systemctl status sshd``
+  - Xshell로 로그인 구성
+    - VirtualBox에서 설정된 포트 포워딩 규칙을 이용해서 ``localhost``의 105번 포트에 대한 연결을 XShell에 생성
+  - 현재 OS 정보 확인: ``$cat /etc/os-relase``
+  - 현재 시스템의 메모리 사용량 확인: ``$free -h``
+  - 현재 OS의 커널 정보 학인: ``$uname -r``
+- 현재까지 구성된 가상머신의 OS 상태를 저장하고 싶다면?
+  - VirtualBox에서 해당 가상머신의 오른쪽의 햄버거 마크를 클릭
+    - 스냅샷 > 현재 정보를 기록 > 찍기
+#### 기본 구성
+#### 원격 로그인 가능하도록 구성
