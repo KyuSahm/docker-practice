@@ -68,3 +68,65 @@ ENTRYPOINT ["node", "app.js"]
   - Virtual Machine의 기반에서는 확장 시, OS의 개수가 계속 늘어나는 문제가 존재
 
 ![컨테이너를 사용하는 이유 - ScaleOut](./images/Why_Container_ScaleOut.png)
+
+## 도커 설치하기
+### 설치 준비 사항
+- 컴퓨터: BareMetal 또는 VirtualMachine
+  - cpu: 2 Core, memory: 2GB 이상 
+- 운영체제: 리눅스 또는 Windows 등  
+- Docker 프로그램
+- Docker 서비스 실행
+### 도커 설치
+- 옵션이 여러개
+  - 옵션 1: VirtualBox 설치(HyperVisor 프로그램)-네트워크 구성-가상 머신(VM) 만들기
+    - 옵션 1-1: VM에 ``Ubuntu 20.04`` 설치하고 기본 환경 구성하기
+    - 옵션 1-2: VM에 ``centOS`` 설치하고 기본 환경 구성하기
+    - Ubuntu/CentOS Server에 Docker 설치하기 (실제 사이트에서는 Ubuntu와 CentOS의 비율이 비슷)
+  - 옵션 2: Windows 10에 DockerDesktop 설치
+
+### VirtualBox 설치 및 Network 구성
+- Step 01: VirtualBox(Hypervisor의 일종) 다운로드 후 설치
+  - https://www.virtualbox.org
+- Step 02: Virbual Box의 Network 구성
+  - NAT 네트워크 추가: 파일-환경설정-네트워크-추가
+  - 네트워크 이름: localNetwork
+  - 네트워크 CIDR: 10.100.0.0/24
+  - DHCP 지원
+  - 포트 포워딩
+```bash
+이름     프로토콜  호스트IP    호스트포트   게스트IP       게스트포트
+docker1  TCP      127.0.0.1   105         10.100.0.105   22
+docker1  TCP      127.0.0.1   106         10.100.0.106   22
+```
+- Step 03: 두 대의 가상머신 만들기
+  - 이름: docker-ubuntu
+    - CPU(2core), Memory(2GB), network(localNetwork), disk(20GB)
+  - 이름: docker-centos
+    - CPU(2core), Memory(2GB), network(localNetwork), disk(20GB)
+  - **실제 OS Install이 되는 것은 아니고, OS 설치를 위한 가상머신이 생성 완료**
+- Step 03-1: docker-ubuntu 설정
+  - VirtualBox 왼쪽 메뉴의 도구 > 새로 만들기
+    - 이름: docker-ubuntu
+    - 머신 폴더: D:\VirtualBox VMs
+    - 종류: Linux
+    - 버전: Unbuntu (64-bit)
+  - 메모리(2GB)와 Disk(20GB)를 제외하고 기본 설정으로 설치
+  - 설치 완료 후, ``docker-ubuntu`` 선택 후, 설정 버튼 클릭
+    - 시스템 > 프로세서: CPU 개수를 2개로 조정
+    - 시스템 > 마더보드: 부팅 순서에 플로피 해제
+    - 네트워크 > 어댑터 1
+      - 다음에 연결됨: ``NAT``를 ``NAT 네트워크``로 변경      
+      - 이름: ``docker-network`` 선택
+- Step 03-2: docker-centos 설정
+  - VirtualBox 왼쪽 메뉴의 도구 > 새로 만들기
+    - 이름: docker-ubuntu
+    - 머신 폴더: D:\VirtualBox VMs
+    - 종류: Linux
+    - 버전: Red Hat (64-bit)
+  - 메모리(2GB)와 Disk(20GB)를 제외하고 기본 설정으로 설치
+  - 설치 완료 후, ``docker-centos`` 선택 후, 설정 버튼 클릭
+    - 시스템 > 프로세서: CPU 개수를 2개로 조정
+    - 시스템 > 마더보드: 부팅 순서에 플로피 해제
+    - 네트워크 > 어댑터 1
+      - 다음에 연결됨: ``NAT``를 ``NAT 네트워크``로 변경      
+      - 이름: ``docker-network`` 선택
