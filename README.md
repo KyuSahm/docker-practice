@@ -132,7 +132,7 @@ docker1  TCP      127.0.0.1   106         10.100.0.106   22
       - 이름: ``docker-network`` 선택
 
 ### VM에 Ubuntu 20.04 설치하고 기본 환경 구성하기
-#### Ubuntu 20.04 다운로드 후 설치
+#### Ubuntu 20.04 다운로드 및 설치
 - 다운로드: https://ubuntu.com/download/desktop
   - Desktop version을 다운로드: Server Version은 GUI가 없음
   - 20.04.XX LTS(Long Term Support-10년)을 다운로드
@@ -182,6 +182,108 @@ $ping -c 3 8.8.8.8
     - ``$systemctl status sshd``
   - Xshell로 로그인 구성
     - VirtualBox에서 설정된 포트 포워딩 규칙을 이용해서 ``localhost``의 105번 포트에 대한 연결을 XShell에 생성
+  - 현재 OS 정보 확인: ``$cat /etc/os-relase``
+  - 현재 시스템의 메모리 사용량 확인: ``$free -h``
+  - 현재 OS의 커널 정보 학인: ``$uname -r``
+- 현재까지 구성된 가상머신의 OS 상태를 저장하고 싶다면?
+  - VirtualBox에서 해당 가상머신의 오른쪽의 햄버거 마크를 클릭
+    - 스냅샷 > 현재 정보를 기록 > 찍기
+
+### VM에 CentOS 7 설치하고 기본 환경 구성하기
+#### CentOS 7 (Redhat 기반)다운로드 및 설치
+- 다운로드: https://centos.org
+- 설치 후 환경구성
+  - 관리자 계정: gusami/e****3
+  - root password: e*****3
+  - 해상도 조절
+  - 네트워크 구성: 10.100.0.106/24, GW: 10.100.0.1, DNS: 10.100.0.1
+    - hostname: docker-centos.example.com
+    - /etc/hosts 구성
+  - text-login 구성
+  - sshd 서비스 동작상태 확인
+  - Xshell로 로그인 가능 여부 확인
+- VirtualBox에서 해당 Virtual Machine를 선택
+  - 설정 > 시스템 > 마더보드 > 기본 메모리를 4096MB로 설정
+  - 설정 > 저장소 > 컨트롤러 IDE > 광학드라이브 > 디스크 파일 선택 > 다운받은 이미지 선택 > 확인
+  - 시작 버튼을 누르면 설치가 시작됨
+  - ``Install CentOS 7`` 선택 후 > Enter 키
+- 설치 순서
+  - 언어 선택(English-United States)
+  - Date & Time Zone > Seoul 선택
+  - Software Selection > GNOME Desktop : 만약, ``Minimal Install``을 선택하면, GUI가 뜨지 않음
+  - Installtion Destination > Automatic Partitioning Selected 상태
+  - Network & Host Name > Ethernet On: DHCP를 이용해서 IP가 자동 할당됨
+    - Host name 변경: docker-centos.example.com
+    - Configure > IPv4 Settings > Method를 Manual로 선택: 네트워크를 Static IP로 변경
+      - Add: Address: 10.100.0.106, Netmask: 24, Gateway: 10.100.0.1
+      - DNS servers: 10.100.0.1
+      - Done 선택
+  - ``Begin Installation`` 선택
+    - 설치 중에 ``Root Password``를 선택해서 암호 설정: ``e******3``
+    - 설치 중에 ``User Creation``를 선택해서 사용자 계정 생성 및 암호 설정: ``gusami/e******3``    
+  - 설치 진행(약 20분 소요)
+  - 설치 완료 후, ``Reboot`` 버튼 클릭 
+  - Licensing > 클릭 후, ``I accept the license agreement``선택
+    - ``Finish Configuration`` 선택
+  - 로그인 화면 > ``gusami`` 아래의 ``not listed``를 선택하면, ``root``로 로그인 가능
+    - ``root``로 로그인
+    - CentOS는 root가 시스템관리자 계정으로 등록되어 있음
+      - ubuntu는 gusami가 시스템 관리자 계정임
+#### 기본 환경 구성 및 VM 네트워크 설정
+- 화면 상단 왼쪽에 메뉴가 두 개 위치
+  - Applications
+  - Places
+- 화면 상단 오른쪽에 위치한 전원버튼을 마우스 클릭  > 설정 버튼 클릭
+  - Devices 선택 > Resolution > 1280 * 960 선택 > Apply
+  - Region & Language > input source 아래에 위치한 ``+`` 버튼을 클릭 > Korean > Korean(hangul) 선택
+    - 한글 입력 가능하게 됨
+  - Privacy > Automatic Screen Lock > Off
+  - Power > Blank screen > Never
+  - Network > 설정 버튼 클릭
+    - IP, Gateway, DNS 확인
+    - Connect automatically > Checked    
+- 화면 상단 왼쪽 ``Applications`` > ``System Tools`` > ``Terminal`` 선택
+  - centOS는 가상 머신안에 또다른 Hypervisor가 존재: 삭제 처리해야 함. ``virbr0`` 항목
+```bash
+# CentOS
+$ip addr
+$systemctl stop libvirtd
+$systemctl disable libvirtd
+```
+![hybervisor_in_centos](./images/hypervisor_in_centos.png)
+- 네트워크 파일 확인
+  - ``/etc/hostname`` 파일 확인
+  - ``/etc/hosts`` 파일에 docker-ubuntu와 docker-centos 등록
+```bash
+$cat /etc/hostname
+docker-centos.example.com
+# hosts 파일에 docker-ubuntu와 docker-centos 등록
+$vi /etc/hosts
+.....
+10.100.0.105  docker-ubuntu.example.com
+10.100.0.106  docker-centos.example.com
+# Google DNS(8.8.8.8)를 PING 테스트를 진행해 봄
+$ping 8.8.8.8 -c 3
+# text login
+```
+- Text 부팅으로 수정: GUI 환경의 부팅은 리소스를 많이 먹고, 속도도 늦음
+  - ``$systemctl set-default multi-user.target``
+  - 만약, GUI 부팅으로 되돌리고 싶으면, ``$systemctl isolate graphical.target`` 수행
+- 기본적으로 SSHD(SSH Demon) 가 동작
+```bash
+$systemctl status sshd
+```
+- 기본적으로 ``curl`` 설치가 되어 있음
+- ``tree``이 설치되어 있지 않음
+```bash
+$yum install -y tree
+```
+- 화면 상단 오른쪽에 power button을 눌러 Power off
+- Xshell로 로그인 구성
+    - VirtualBox에서 설정된 포트 포워딩 규칙을 이용해서 ``localhost``의 106번 포트에 대한 연결을 XShell에 생성
+  - 현재 계정 정보 확인: ``$whoami``  
+  - 현재 주소 확인: ``$ip addr``  
+  - hostname 확인: ``$hostname``
   - 현재 OS 정보 확인: ``$cat /etc/os-relase``
   - 현재 시스템의 메모리 사용량 확인: ``$free -h``
   - 현재 OS의 커널 정보 학인: ``$uname -r``
