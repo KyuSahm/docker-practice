@@ -290,5 +290,210 @@ $yum install -y tree
 - 현재까지 구성된 가상머신의 OS 상태를 저장하고 싶다면?
   - VirtualBox에서 해당 가상머신의 오른쪽의 햄버거 마크를 클릭
     - 스냅샷 > 현재 정보를 기록 > 찍기
-#### 기본 구성
-#### 원격 로그인 가능하도록 구성
+### Ubuntu/CentOS Server에 Docker 설치하기
+- CentOS와 Ubuntu에 Docker 설치: https://docs.docker.com
+- 설치 방법
+  - Repository를 이용해서 설치
+  - Download 후 직접 설치
+  - Script를 이용한 설치
+- 설치 후, 동작 상태 확인
+- 계정 추가
+#### Ubuntu Sever에 Docker 설치하기
+- Install Docker Engine on Ubuntu: https://docs.docker.com/engine/install/ubuntu/
+- XShell 로그인
+- 기존의 설치된 docker old 버전이 있다면 삭제하기
+```bash
+ $sudo apt-get remove docker docker-engine docker.io containerd runc
+ ```
+- 설치방법 01: Repository를 이용해서 설치 (우리가 사용)
+  - docker를 install할 시스템이 외부 네트워크에 접근이 가능한 경우
+
+![docker_install_by_repository.png](./images/docker_install_by_repository.png)
+- 설치방법 02: Download 후 직접 설치
+  - docker 프로그램을 다른 시스템에서 다운로드 받은 후, 복사해서 직접 설치
+- 설치방법 03: Script를 이용한 설치
+  - ``설치 방법 01``과 ``설치 방법 02``를 할 수 있도록 스크립트를 제공
+##### Repository를 이용한 설치
+- docker package repository의 URL을 설치하고자 하는 로컬시스템에 등록해줘야 함 
+- Step 01: HTTP를 통해 docker package repository를 사용하기 위한 패키지 설치
+```bash
+$sudo apt-get update
+$sudo apt-get install \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+```    
+- Step 02: 인증서를 로컬에 저장
+  - docker package들은 인증서를 가지고 디지털 서명이 되어 있음
+```bash
+$curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+```  
+- Step 03: 다운받은 인증서를 이용해서 URL 등록
+```bash
+$echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```  
+- Step 04: install with ``apt-get command``
+  - 새로 등록된 URL을 이용하여 package index를 업데이트: ``sudo apt-get update``
+```bash
+$sudo apt-get update
+# docker-ce: docker daemon
+# docker-ce-cli: client command
+# containerd.io: docker engine
+$sudo apt-get install docker-ce docker-ce-cli containerd.io -y
+ ```
+- Step 05: 설치가 잘 되었는지 확인
+```bash
+# 방법1: hello-world image을 다운로드 한 후, 실행
+$sudo docker run hello-world
+# 방법2: docker version으로 확인하는 방법. client와 server의 모든 정보가 나와야 함
+$sudo $ sudo docker version
+Client: Docker Engine - Community
+ Version:           20.10.11
+ API version:       1.41
+ Go version:        go1.16.9
+ Git commit:        dea9396
+ Built:             Thu Nov 18 00:37:06 2021
+ OS/Arch:           linux/amd64
+ Context:           default
+ Experimental:      true
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          20.10.11
+  API version:      1.41 (minimum version 1.12)
+  Go version:       go1.16.9
+  Git commit:       847da18
+  Built:            Thu Nov 18 00:35:15 2021
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          1.4.12
+  GitCommit:        7b11cfaabd73bb80907dd23182b9347b4245eb5d
+ runc:
+  Version:          1.0.2
+  GitCommit:        v1.0.2-0-g52b36a2
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+```
+#### CentOS Sever에 Docker 설치하기
+- Install Docker Engine on CentOS: https://docs.docker.com/engine/install/centos/
+  - CentOS 7 or 8에서 설치 가능
+- XShell 로그인
+- 기존의 설치된 docker old 버전이 있다면 삭제하기
+```bash
+ $sudo yum remove docker \
+                  docker-client \
+                  docker-client-latest \
+                  docker-common \
+                  docker-latest \
+                  docker-latest-logrotate \
+                  docker-logrotate \
+                  docker-engine
+ ```
+- 설치방법 01: Repository를 이용해서 설치 (우리가 사용)
+  - docker를 install할 시스템이 외부 네트워크에 접근이 가능한 경우
+- 설치방법 02: RPM package Download 후 직접 설치
+  - docker 프로그램을 다른 시스템에서 다운로드 받은 후, 복사해서 직접 설치
+- 설치방법 03: Script를 이용한 설치
+  - ``설치 방법 01``과 ``설치 방법 02``를 할 수 있도록 스크립트를 제공
+##### Repository를 이용한 설치
+- docker package repository의 URL을 설치하고자 하는 로컬시스템에 등록해줘야 함 
+- CentOS는 **root 계정**으로 설치해줘야 함
+- Step 01: HTTP를 통해 docker package repository를 사용하기 위한 패키지 설치   
+```bash
+$yum install -y yum-utils
+```    
+- Step 02: Repository URL을 로컬에 등록
+```bash
+$yum-config-manager \
+>     --add-repo \
+>     https://download.docker.com/linux/centos/docker-ce.repo
+Loaded plugins: fastestmirror, langpacks
+adding repo from: https://download.docker.com/linux/centos/docker-ce.repo
+grabbing file https://download.docker.com/linux/centos/docker-ce.repo to /etc/yum.repos.d/docker-ce.repo
+repo saved to /etc/yum.repos.d/docker-ce.repo
+```  
+- Step 03: install with ``yum install command``
+  - 설치 시, 인증서를 가져옴 (Ubuntu와 차이점)
+```bash
+# docker-ce: docker daemon
+# docker-ce-cli: client command
+# containerd.io: docker engine
+$yum install docker-ce docker-ce-cli containerd.io -y
+ ```
+- Step 04: docker service daemon 시작 및 활성화(Ubuntu와 차이점)
+```bash
+$systemctl start docker
+$systemctl enable docker
+Created symlink from /etc/systemd/system/multi-user.target.wants/docker.service to /usr/lib/systemd/system/docker.service.
+# service enable 상태 확인: 다음 부팅시에도 서비스가 동작.(centOS에만 필요)
+$systemctl status docker
+● docker.service - Docker Application Container Engine
+     Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+     Active: active (running) since Sat 2021-12-11 11:32:12 KST; 41min ago
+TriggeredBy: ● docker.socket
+       Docs: https://docs.docker.com
+   Main PID: 7457 (dockerd)
+      Tasks: 9
+     Memory: 30.6M
+     CGroup: /system.slice/docker.service
+             └─7457 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+```
+- Step 05: 설치가 잘 되었는지 확인
+```bash
+# docker version으로 확인하는 방법. client와 server의 모든 정보가 나와야 함
+$docker version
+Client: Docker Engine - Community
+ Version:           20.10.11
+ API version:       1.41
+ Go version:        go1.16.9
+ Git commit:        dea9396
+ Built:             Thu Nov 18 00:38:53 2021
+ OS/Arch:           linux/amd64
+ Context:           default
+ Experimental:      true
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          20.10.11
+  API version:      1.41 (minimum version 1.12)
+  Go version:       go1.16.9
+  Git commit:       847da18
+  Built:            Thu Nov 18 00:37:17 2021
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          1.4.12
+  GitCommit:        7b11cfaabd73bb80907dd23182b9347b4245eb5d
+ runc:
+  Version:          1.0.2
+  GitCommit:        v1.0.2-0-g52b36a2
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+```
+### 계정에 Docker 관리자 권한주기 on Ubuntu and CentOS
+- 설치 후, root계정만이 ``docker`` 명령어를 수행 가능
+- ``root``로 로그인 후, ``docker`` 그룹에 사용자를 추가하면 됨
+```bash
+gusami@docker-ubuntu:~$su -
+암호: 
+root@docker-ubuntu:~#usermod -a -G docker gusami
+root@docker-ubuntu:~#su - gusami
+gusami@docker-ubuntu:~$docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+```bash
+[gusami@docker-centos ~]$su -
+Password: 
+Last login: Sat Dec 11 11:52:41 KST 2021 on pts/0
+[root@docker-centos ~]#usermod -a -G docker gusami
+[root@docker-centos ~]#su - gusami
+Last login: Sat Dec 11 10:55:28 KST 2021 from 10.100.0.2 on pts/0
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
