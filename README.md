@@ -497,3 +497,155 @@ Last login: Sat Dec 11 10:55:28 KST 2021 from 10.100.0.2 on pts/0
 [gusami@docker-centos ~]$docker ps
 CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
 ```
+### Windows에 DockerDesktop 설치하기
+- hub.docker.com 계정 등록 (gusami32/e******3)
+  - docker container image가 등록된 Hub 사이트
+- DockerDesktop 설치하기
+  - Hyper-V 가상화 기능 활성화
+  - WSL2(Windows Subsystem for Linux v.2)의 리눅스 커널 설치
+    - DockerDesktop 설치 시, 자동 설치  
+- Docker 동작 상태 확인
+#### 다운로드 및 설치
+- 설치 방법: https://docs.docker.com/desktop/windows/install/
+- Download Docker Desktop for windows
+- ``Docker Desktop Installer.exe`` 더블 클릭해서 실행
+- 선행 조건
+  - Enable Hyper-V Windows Features (bios에서 hyper-v로 설정되어 있어야 함)
+  - hub.docker.com 계정으로 로그인 할 수 있어야 사용 가능 
+- 명령어를 이용해서 Hyper-v 기능 on
+  - open a cmd with admin privilige
+  - turn on
+    - bcdedit /set hypervisorlaunchtype auto
+  - turn off
+    - bcdedit /set hypervisorlaunchtype off
+  - reboot
+- 설치 후, Hyper-V와 WSL2 기능 활성화를 위해 윈도우 리부팅이 필요
+- 만약에 필요하다는 메시지가 뜨면, WSL2 업데이트와 리눅스를 설치하는 방법
+  - https://docs.microsoft.com/en-us/windows/wsl/install-manual 참조 
+- 정상 설치 후, 윈도우 오른쪽 하단의 docker system tray가 생김
+- PowerShell을 관리자 버전으로 실행
+  - ``docker version``을 통해 버전 확인
+```bash
+PS C:\Windows\system32> docker version
+Client:
+ Cloud integration: v1.0.22
+ Version:           20.10.11
+ API version:       1.41
+ Go version:        go1.16.10
+ Git commit:        dea9396
+ Built:             Thu Nov 18 00:42:51 2021
+ OS/Arch:           windows/amd64
+ Context:           default
+ Experimental:      true
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          20.10.11
+  API version:      1.41 (minimum version 1.12)
+  Go version:       go1.16.9
+  Git commit:       847da18
+  Built:            Thu Nov 18 00:35:39 2021
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          1.4.12
+  GitCommit:        7b11cfaabd73bb80907dd23182b9347b4245eb5d
+ runc:
+  Version:          1.0.2
+  GitCommit:        v1.0.2-0-g52b36a2
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+```
+- docker login후 사용 가능
+```bash
+PS C:\Windows\system32> docker login
+Login with your Docker ID to push and pull images from Docker Hub. If you don't have a Docker ID, head over to https://hub.docker.com to create one.
+Username: gusami32
+Password:
+Login Succeeded
+
+Logging in with your password grants your terminal complete access to your account.
+For better security, log in with a limited-privilege personal access token. Learn more at https://docs.docker.com/go/access-tokens/
+```
+- docker image download
+```bash
+PS C:\Windows\system32> docker pull nginx
+Using default tag: latest
+latest: Pulling from library/nginx
+e5ae68f74026: Pull complete
+21e0df283cd6: Pull complete
+ed835de16acd: Pull complete
+881ff011f1c9: Pull complete
+77700c52c969: Pull complete
+44be98c0fab6: Pull complete
+Digest: sha256:9522864dd661dcadfd9958f9e0de192a1fdda2c162a35668ab6ac42b465f0603
+Status: Downloaded newer image for nginx:latest
+docker.io/library/nginx:latest
+```
+- docker 이미지 실행
+```bash
+PS C:\Windows\system32> docker run -d -p 80:80 --name web nginx
+67f84a250b844ad7abd0b795c53de1312667424ec42dcf32c94b35f4acbe3d03
+```
+- nginx 접속
+```bash
+PS C:\Windows\system32> curl http://localhost:80
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : <!DOCTYPE html>
+                    <html>
+                    <head>
+                    <title>Welcome to nginx!</title>
+                    <style>
+                    html { color-scheme: light dark; }
+                    body { width: 35em; margin: 0 auto;
+                    font-family: Tahoma, Verdana, Arial, sans-serif; }
+                    </style...
+RawContent        : HTTP/1.1 200 OK
+                    Connection: keep-alive
+                    Accept-Ranges: bytes
+                    Content-Length: 615
+                    Content-Type: text/html
+                    Date: Sat, 11 Dec 2021 04:46:47 GMT
+                    ETag: "61814ff2-267"
+                    Last-Modified: Tue, 02 Nov 2021 ...
+Forms             : {}
+Headers           : {[Connection, keep-alive], [Accept-Ranges, bytes], [Content-Length, 615], [Content-Type, text/html]
+                    ...}
+Images            : {}
+InputFields       : {}
+Links             : {@{innerHTML=nginx.org; innerText=nginx.org; outerHTML=<A href="http://nginx.org/">nginx.org</A>; o
+                    uterText=nginx.org; tagName=A; href=http://nginx.org/}, @{innerHTML=nginx.com; innerText=nginx.com;
+                     outerHTML=<A href="http://nginx.com/">nginx.com</A>; outerText=nginx.com; tagName=A; href=http://n
+                    ginx.com/}}
+ParsedHtml        : mshtml.HTMLDocumentClass
+RawContentLength  : 615
+```
+- docker container 중지
+```bash
+PS C:\Windows\system32> docker rm -f web
+web
+```
+- docker image 삭제
+```bash
+PS C:\Windows\system32> docker rmi nginx
+Untagged: nginx:latest
+Untagged: nginx@sha256:9522864dd661dcadfd9958f9e0de192a1fdda2c162a35668ab6ac42b465f0603
+Deleted: sha256:f652ca386ed135a4cbe356333e08ef0816f81b2ac8d0619af01e2b256837ed3e
+Deleted: sha256:a7edf84b6db27e8ef5d7368c95159120f00a74cee57368e2bc107ee713172699
+Deleted: sha256:46893639b5fbc6315531cb197fb4071750508880425c0620d88aae4e483d72c1
+Deleted: sha256:afa1ff13852cf0fa5d5ff8cd21c8a21a99c139fc069926cd1316d1ad3d0c7189
+Deleted: sha256:831e8983bb6a65130bec4e73bed4bc641bfd6d7c6917be32a483882f70e809b0
+Deleted: sha256:d213f9a0e4eef08107f70d94b36f5a41c1437fc68af82ee82eb74de80282130a
+Deleted: sha256:9321ff862abbe8e1532076e5fdc932371eff562334ac86984a836d77dfb717f5
+```
+- docker image 목록 확인
+```bash
+PS C:\Windows\system32> docker images
+REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
+```
+- docker desktop 실행 종료
+  - system tray에서 마우스 우클릭 후, 종료 버튼을 누름
