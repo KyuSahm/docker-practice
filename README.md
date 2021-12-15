@@ -649,3 +649,52 @@ REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
 ```
 - docker desktop 실행 종료
   - system tray에서 마우스 우클릭 후, 종료 버튼을 누름
+- docker desktop 서비스 중지
+  - 윈도우 서비스에서 수동으로 전환 후, 정지 시킴
+
+## 컨테이너와 컨테이너 이미지
+### 컨테이너
+- 컨테이너는 하나의 Application 프로세스
+- 컨테이너는 완전히 독립된 공간에 분리되어서 운영됨
+  - 별도의 CPU, Memory, Host name과 Network, Disk
+  - User Id
+- 컨테이너 이미지가 메모리에 로딩되어 실행되는 상태
+
+![docker container](./images/docker_container.png)
+- docker host
+  - docker가 설치되어 docker daemon(dockerd)이 실행되는 리눅스 커널 시스템
+### 컨테이너 이미지
+- 컨테이너 이미지는 하드 디스크에 파일로 존재
+- 만약, node js 기반에 app.js를 코딩해서 실행하고 싶다면?
+  - 컨테이너 이미지는 여러 Layer로 구성됨
+    - base image Layer
+    - appjs source image Layer
+    - ``run node app.js`` Layer
+  
+![docker container image](./images/docker_container_image.png)  
+### 컨테이너 동작 방식
+- Docker Host와 Docker Hub가 존재
+- Docker Hub: Docker Container Image가 저장된 Repository
+- 사용예: Docker Hub에서 nginx container image를 찾아라!!
+```bash
+$docker search nginx
+```
+- 사용예: Docker Hub에서 nginx container image를 최신본을 가져와라!!  
+```bash
+$docker pull nginx:latest
+```
+- 사용예: 다운받은 Docker nginx container image를 실행해서 컨테이너 생성해라!!
+  - ``run, create, start`` 명령어  
+```bash
+$docker run -d --name web -p80:80 nginx:latest
+```
+#### 용어 정리
+- Docker Host (Linux Kernel)
+- Docker Daemon: systemctl start docker
+- Docker Client Command: docker
+- Docker Hub
+- Container Images
+- Container
+
+![docker_container_glossary](./images/docker_container_glossary.png)
+
