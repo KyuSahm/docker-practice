@@ -688,7 +688,7 @@ $docker pull nginx:latest
 ```bash
 $docker run -d --name web -p80:80 nginx:latest
 ```
-#### 용어 정리
+### 용어 정리
 - Docker Host (Linux Kernel)
 - Docker Daemon: systemctl start docker
 - Docker Client Command: docker
@@ -697,4 +697,176 @@ $docker run -d --name web -p80:80 nginx:latest
 - Container
 
 ![docker_container_glossary](./images/docker_container_glossary.png)
+### 실습
+- docker daemon이 동작 중인지 확인
+```bash
+gusami@docker-ubuntu:~$sudo systemctl status docker
+[sudo] gusami의 암호: 
+● docker.service - Docker Application Container Engine
+     Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2021-12-15 22:29:23 KST; 3min 33s ago
+TriggeredBy: ● docker.socket
+       Docs: https://docs.docker.com
+   Main PID: 677 (dockerd)
+      Tasks: 8
+     Memory: 105.3M
+     CGroup: /system.slice/docker.service
+             └─677 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
 
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.980384435+09:00" level=warning msg="Your kernel does not sup>
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.980425913+09:00" level=warning msg="Your kernel does not sup>
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.980431473+09:00" level=warning msg="Your kernel does not sup>
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.981084107+09:00" level=info msg="Loading containers: start."
+12월 15 22:29:23 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:23.215296025+09:00" level=info msg="Default bridge (docker0) is>
+12월 15 22:29:23 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:23.250771249+09:00" level=info msg="Loading containers: done."
+lines 1-17...skipping...
+● docker.service - Docker Application Container Engine
+     Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2021-12-15 22:29:23 KST; 3min 33s ago
+TriggeredBy: ● docker.socket
+       Docs: https://docs.docker.com
+   Main PID: 677 (dockerd)
+      Tasks: 8
+     Memory: 105.3M
+     CGroup: /system.slice/docker.service
+             └─677 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.980384435+09:00" level=warning msg="Your kernel does not sup>
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.980425913+09:00" level=warning msg="Your kernel does not sup>
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.980431473+09:00" level=warning msg="Your kernel does not sup>
+12월 15 22:29:22 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:22.981084107+09:00" level=info msg="Loading containers: start."
+12월 15 22:29:23 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:23.215296025+09:00" level=info msg="Default bridge (docker0) is>
+12월 15 22:29:23 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:23.250771249+09:00" level=info msg="Loading containers: done."
+12월 15 22:29:23 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:23.314708665+09:00" level=info msg="Docker daemon" commit=847da>
+12월 15 22:29:23 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:23.315513164+09:00" level=info msg="Daemon has completed initia>
+12월 15 22:29:23 docker-ubuntu.example.com systemd[1]: Started Docker Application Container Engine.
+12월 15 22:29:23 docker-ubuntu.example.com dockerd[677]: time="2021-12-15T22:29:23.338471841+09:00" level=info msg="API listen on /run/docker.s>
+```
+- docker hub에서 nginx container 찾기
+```bash
+gusami@docker-ubuntu:~$docker search nginx
+NAME                              DESCRIPTION                                     STARS     OFFICIAL   AUTOMATED
+nginx                             Official build of Nginx.                        15972     [OK]       
+jwilder/nginx-proxy               Automated Nginx reverse proxy for docker con…   2103                 [OK]
+richarvey/nginx-php-fpm           Container running Nginx + PHP-FPM capable of…   820                  [OK]
+jc21/nginx-proxy-manager          Docker container for managing Nginx proxy ho…   293                  
+linuxserver/nginx                 An Nginx container, brought to you by LinuxS…   161                  
+tiangolo/nginx-rtmp               Docker image with Nginx using the nginx-rtmp…   148                  [OK]
+jlesage/nginx-proxy-manager       Docker container for Nginx Proxy Manager        147                  [OK]
+alfg/nginx-rtmp                   NGINX, nginx-rtmp-module and FFmpeg from sou…   112                  [OK]
+nginxdemos/hello                  NGINX webserver that serves a simple page co…   79                   [OK]
+privatebin/nginx-fpm-alpine       PrivateBin running on an Nginx, php-fpm & Al…   61                   [OK]
+nginx/nginx-ingress               NGINX and  NGINX Plus Ingress Controllers fo…   59                   
+nginxinc/nginx-unprivileged       Unprivileged NGINX Dockerfiles                  56                   
+nginxproxy/nginx-proxy            Automated Nginx reverse proxy for docker con…   31                   
+staticfloat/nginx-certbot         Opinionated setup for automatic TLS certs lo…   25                   [OK]
+nginx/nginx-prometheus-exporter   NGINX Prometheus Exporter for NGINX and NGIN…   22                   
+schmunk42/nginx-redirect          A very simple container to redirect HTTP tra…   19                   [OK]
+centos/nginx-112-centos7          Platform for running nginx 1.12 or building …   16                   
+centos/nginx-18-centos7           Platform for running nginx 1.8 or building n…   13                   
+flashspys/nginx-static            Super Lightweight Nginx Image                   11                   [OK]
+bitwarden/nginx                   The Bitwarden nginx web server acting as a r…   11                   
+mailu/nginx                       Mailu nginx frontend                            10                   [OK]
+webdevops/nginx                   Nginx container                                 9                    [OK]
+sophos/nginx-vts-exporter         Simple server that scrapes Nginx vts stats a…   7                    [OK]
+ansibleplaybookbundle/nginx-apb   An APB to deploy NGINX                          3                    [OK]
+wodby/nginx                       Generic nginx                                   1                    [OK]
+```
+- 다운로드된 docker image 확인
+```bash
+root@docker-ubuntu:/var/lib/docker/overlay2$docker images ls
+REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
+```
+- docker hub에서 nginx container image 다운로드
+  - ``Pull complete`` 라인의 개수가 Layer 개수를 의미
+  - Layer는 ``/var/lib/docker/overlay2`` 디렉토리의 파일로 존재
+```bash
+root@docker-ubuntu:/var/lib/docker/overlay2$docker pull nginx
+Using default tag: latest
+latest: Pulling from library/nginx
+e5ae68f74026: Pull complete 
+21e0df283cd6: Pull complete 
+ed835de16acd: Pull complete 
+881ff011f1c9: Pull complete 
+77700c52c969: Pull complete 
+44be98c0fab6: Pull complete 
+Digest: sha256:9522864dd661dcadfd9958f9e0de192a1fdda2c162a35668ab6ac42b465f0603
+Status: Downloaded newer image for nginx:latest
+docker.io/library/nginx:latest
+```
+```bash
+root@docker-ubuntu:/var/lib/docker/overlay2$ls -l
+drwx--x--- 4 root root 4096 12월 16 22:10 4576390776f4daafd0e07a5b3a88bee2df4ec195e3598e6376df28d87c060d41
+drwx--x--- 4 root root 4096 12월 16 22:10 6d4b7d6f9be0010639e125d174f623fd9f5972aacf8f8fe8af1bacde6648d4d9
+drwx--x--- 4 root root 4096 12월 16 22:10 6e95d5578380d1d3b2291d1b00c3d17a6407d78a04488a276421ce0b00c415f9
+drwx--x--- 3 root root 4096 12월 16 22:10 7da02fd3d3ba3d663cea7eb47a2efe23e0a62f902cc1e9586dde6f410c955ef2
+drwx--x--- 4 root root 4096 12월 16 22:10 895a8b414b39370cf72fd748998cd1d11a55b08b95aa69d82e692787debd5202
+drwx--x--- 4 root root 4096 12월 16 22:10 ce1c2b29c3602d08cc0b56f1805aeb22659b64d45ce58c703d2c781541451376
+```
+```bash
+gusami@docker-ubuntu:~$docker image ls
+REPOSITORY    TAG       IMAGE ID       CREATED        SIZE
+nginx         latest    f652ca386ed1   2 weeks ago    141MB
+```
+- 컨테이너 실행하고 확인해 보기
+  - ``docker run`` 명령어를 사용
+```bash
+# 실행시 컨테이너 ID를 결과로 보여줌
+gusami@docker-ubuntu:~$ docker run --name web -d -p 80:80 nginx
+6eb251c65633b8262f63ebd05d4bb63afc2f8a94a84835086b30cbe44253a801
+```
+- 현재 실행중인 도커 컨테이너 프로세스 보기
+```bash
+gusami@docker-ubuntu:~$docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED              STATUS              PORTS                               NAMES
+6eb251c65633   nginx     "/docker-entrypoint.…"   About a minute ago   Up About a minute   0.0.0.0:80->80/tcp, :::80->80/tcp   web
+```
+- nginx에 접속해 보기
+```bash
+gusami@docker-ubuntu:~$ curl localhost:80
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+- docker container 중지하기
+```bash
+gusami@docker-ubuntu:~$docker stop web
+web
+gusami@docker-ubuntu:~$docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+- docker container 지우기
+  - docker container 이미지는 로컬에 그대로 존재
+```bash
+gusami@docker-ubuntu:~$docker rm web 
+web
+gusami@docker-ubuntu:~$docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+- docker container image 지우기
+```bash
+# image 지우기
+gusami@docker-ubuntu:~$docker rm image nginx
+# 디렉토리에서 확인
+root@docker-ubuntu:/var/lib/docker/overlay2# ls -l
+```
