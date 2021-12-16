@@ -870,3 +870,54 @@ gusami@docker-ubuntu:~$docker rm image nginx
 # 디렉토리에서 확인
 root@docker-ubuntu:/var/lib/docker/overlay2# ls -l
 ```
+## 컨테이너 만들어 보기
+### 무엇을 컨테이너로 만드는 거죠?
+- **개발한 애플리케이션(실행파일)과 운영환경이 모두 들어있는 독립된 공간**
+  - Layer 1: 운영 환경(예: nodejs, python, tensorflow)
+  - Layer 2: 소스 코드 또는 컴파일된 바이너리 파일(예: hello.js 파일)
+  - Layer 3: 소스 코드 또는 바이너리를 실행할 명령어(예: 명령어 ``node hello.js``)
+
+![docker container layers](./images/docker_container_layers.png)
+- 개발한 프로그램과 실행환경을 모두 컨테이너로 생성
+- MSA(Micro Service Architecture) 환경의 다양한 언어(Polyglot)의 애플리케이션 운영
+  - Polyglot Programming: 다양한 언어를 사용하여 프로그래밍 하는 것!
+
+![MSA Environment](./images/MSA_Environment.png)
+### 컨테이너를 만드는 방법(Dockerfile)
+- Dockerfile을 이용해 컨테이너를 빌드한다
+- Dockerfile은?  
+  - 쉽고 간단하고 명확한 구문을 가진 text file로 Top-down 해석
+    - Dockerfile의 윗줄부터 아랫줄로 차례대로 해석해서 적용
+  - 컨테이너 이미지를 생성할 수 있는 **고유의 지시어**(Instruction)를 가짐
+  - 대소문자를 구분하지 않으나 가독성을 위해 지시어는 대문자를 사용
+    - ``FROM, COPY, CMD``
+```bash
+$mkdir build
+$cd build
+$vi dockerfile
+FROM node:12
+COPY hello.js /
+CMD ["node", "/hello.js"]
+$docker build -t imagename:tag
+```
+#### Dockerfile 문법 (핵심 지시어만 정리)
+- ``#``: comment
+- ``FROM``: 컨테이너의 BASE IMAGE(운영환경)
+- ``MAINTAINER``: 이미지를 생성한 사람의 이름 및 정보
+- ``LABEL``: 컨테이너 이미지에 컨테이너의 정보를 저장
+- ``RUN``: 컨테이너 빌드를 위해 base image에서 실행할 commands
+- ``COPY``: 컨테이너 빌드시 호스트의 파일을 컨테이너로 복사
+- ``ADD``: 컨테이너 빌드시 호스트의 파일(``tar, url`` 포함)을 컨테이너로 복사
+  - ``tar``를 이용해서 압축을 풀어서 복사
+  - ``url``을 이용해서 다운로드 받아서 복사
+- ``WORKDIR``: 컨테이너 빌드시 명령이 실행될 작업 디렉토리 설정
+  - 현재 작업 디렉토리를 지정
+- ``ENV``: 환경변수 지정 (컨테이너가 실행시 남아있음)
+- ``USER``: 명령 및 컨테이너 실행시 적용할 유저 설정 (보안과 연관)
+  - ``root``가 아닌 다른 사용자를 빌드 또는 실행 시 사용
+- ``VOLUME``: 파일 또는 디렉토리를 컨테이너의 디렉토리로 마운트
+  - 보통, 컨테이너에서 애플리케이션 데이터가 저장되는 공간을 지정
+  - 예를 들면, ``/var/lib/mysql``을 마운트하면 데이터가 영구적으로 보존 가능
+- ``EXPOSE``: 컨테이너 동작 시 외부에서 사용할 포트 지정
+- ``CMD``: 컨테이너 동작 시 자동으로 실행할 서비스나 스크립트 지정
+- ``ENTRYPOINT``: CMD와 함께 사용하면서 command 지정 시 사용
