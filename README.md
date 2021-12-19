@@ -870,7 +870,7 @@ gusami@docker-ubuntu:~$docker rm image nginx
 # 디렉토리에서 확인
 root@docker-ubuntu:/var/lib/docker/overlay2# ls -l
 ```
-## 컨테이너 만들어 보기
+## 컨테이너 만들어 보기 (이론)
 ### 무엇을 컨테이너로 만드는 거죠?
 - **개발한 애플리케이션(실행파일)과 운영환경이 모두 들어있는 독립된 공간**
   - Layer 1: 운영 환경(예: nodejs, python, tensorflow)
@@ -906,6 +906,7 @@ $docker build -t imagename:tag
 - ``MAINTAINER``: 이미지를 생성한 사람의 이름 및 정보
 - ``LABEL``: 컨테이너 이미지에 컨테이너의 정보를 저장
 - ``RUN``: 컨테이너 빌드를 위해 base image에서 실행할 commands
+  - container 빌드를 위해 container내에서 수행할 명령을 명시
 - ``COPY``: 컨테이너 빌드시 호스트의 파일을 컨테이너로 복사
 - ``ADD``: 컨테이너 빌드시 호스트의 파일(``tar, url`` 포함)을 컨테이너로 복사
   - ``tar``를 이용해서 압축을 풀어서 복사
@@ -921,3 +922,146 @@ $docker build -t imagename:tag
 - ``EXPOSE``: 컨테이너 동작 시 외부에서 사용할 포트 지정
 - ``CMD``: 컨테이너 동작 시 자동으로 실행할 서비스나 스크립트 지정
 - ``ENTRYPOINT``: CMD와 함께 사용하면서 command 지정 시 사용
+  - ``CMD`` 또는 ``ENTRYPOINT`` 중 하나를 주로 사용
+  - ``CMD``의 경우, Container를 Running할 때, 사용자에 의해 다른 명령으로 치환 가능
+  - ``ENTRYPOINT``의 경우, Container를 Running할 때, 사용자에 의해 다른 명령으로 치환 불가능 (차단)
+  - ``ENTRYPOINT``와 ``CMD``를 동시에 사용한 경우
+    - ``ENTRYPOINT``는 반드시 바이너리 명령어를 명시
+    - ``CMD``는 argument 또는 Option을 명시
+#### Dockerfile 예제 보기
+- 소스코드(hello.js) 작성
+- Layer 1: ``node:12``을 base image를 이용해서 환경 구성
+- Layer 2: 작성한 코드를 이미지 빌드 시 복사하도록 구성
+- Layer 3: 컨테이너가 실행될 때 수행할 명령어를 작성
+```bash
+$mkdir build
+$cd build
+$vi hello.js
+$vi dockerfile
+FROM node:12
+COPY hello.js /
+CMD ["node", "/hello.js"]
+# 아래의 마지막 "."의 의미는 현재 로컬 디렉토리에 hello.js가 있다는 의미
+# 아마 COPY 명령에서 사용하는 듯
+$docker build -t hellojs:latest .
+```
+### Container를 배포하려면?
+- Docker Hub는 Public Hub 또는 회사에서 사용하는 Private Hub일 수 있음
+- Docker build 후, 인증을 받은 후, Hub에 Push
+```bash
+$docker build -t hellojs:latest .
+# user name과 Password를 입력
+$docker login
+# docker hub에 push
+$docker push hellojs:latest
+```
+![Docker_Dist](./images/Docker_Dist.png)
+- ``https://hub.docker.com/`` > Explorer를 선택하면, 다양한 docker image를 볼 수 있음
+  - 특정 docker image를 클릭하면, docker file의 내용을 볼 수 있음
+- Dockerfile 예제 (mysql:latest)
+  - base image: ``debian:buster-slim``
+  - RUN 명령: 이미지 빌드를 위해 base image에서 수행할 명령어들. 유저 생성 및 application 설치
+  - ENV: 환경 변수 생성
+  - EXPOSE: 서비스 동작 시, 외부로 오픈된 포트 명시
+  - VOLUME: container내부로 마운트할 host의 디렉토리 명시
+  - ENTRYPOINT: ``docker-entrypoint.sh``. 실행할 명령어 또는 스크립트
+  - CMD: 인자로 "mysqld"을 넣어줌
+```dockerfile
+#
+# NOTE: THIS DOCKERFILE IS GENERATED VIA "apply-templates.sh"
+#
+# PLEASE DO NOT EDIT IT DIRECTLY.
+#
+
+FROM debian:buster-slim
+
+# add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
+RUN groupadd -r mysql && useradd -r -g mysql mysql
+
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg dirmngr && rm -rf /var/lib/apt/lists/*
+
+# add gosu for easy step-down from root
+# https://github.com/tianon/gosu/releases
+ENV GOSU_VERSION 1.12
+RUN set -eux; \
+	savedAptMark="$(apt-mark showmanual)"; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates wget; \
+	rm -rf /var/lib/apt/lists/*; \
+	dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
+	wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
+	wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
+	export GNUPGHOME="$(mktemp -d)"; \
+	gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
+	gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
+	gpgconf --kill all; \
+	rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+	apt-mark auto '.*' > /dev/null; \
+	[ -z "$savedAptMark" ] || apt-mark manual $savedAptMark > /dev/null; \
+	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+	chmod +x /usr/local/bin/gosu; \
+	gosu --version; \
+	gosu nobody true
+
+RUN mkdir /docker-entrypoint-initdb.d
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+# for MYSQL_RANDOM_ROOT_PASSWORD
+		pwgen \
+# for mysql_ssl_rsa_setup
+		openssl \
+# FATAL ERROR: please install the following Perl modules before executing /usr/local/mysql/scripts/mysql_install_db:
+# File::Basename
+# File::Copy
+# Sys::Hostname
+# Data::Dumper
+		perl \
+# install "xz-utils" for .sql.xz docker-entrypoint-initdb.d files
+		xz-utils \
+	&& rm -rf /var/lib/apt/lists/*
+
+RUN set -ex; \
+# gpg: key 5072E1F5: public key "MySQL Release Engineering <mysql-build@oss.oracle.com>" imported
+	key='A4A9406876FCBD3C456770C88C718D3B5072E1F5'; \
+	export GNUPGHOME="$(mktemp -d)"; \
+	gpg --batch --keyserver keyserver.ubuntu.com --recv-keys "$key"; \
+	gpg --batch --export "$key" > /etc/apt/trusted.gpg.d/mysql.gpg; \
+	gpgconf --kill all; \
+	rm -rf "$GNUPGHOME"; \
+	apt-key list > /dev/null
+
+ENV MYSQL_MAJOR 8.0
+ENV MYSQL_VERSION 8.0.27-1debian10
+
+RUN echo 'deb http://repo.mysql.com/apt/debian/ buster mysql-8.0' > /etc/apt/sources.list.d/mysql.list
+
+# the "/var/lib/mysql" stuff here is because the mysql-server postinst doesn't have an explicit way to disable the mysql_install_db codepath besides having a database already "configured" (ie, stuff in /var/lib/mysql/mysql)
+# also, we set debconf keys to make APT a little quieter
+RUN { \
+		echo mysql-community-server mysql-community-server/data-dir select ''; \
+		echo mysql-community-server mysql-community-server/root-pass password ''; \
+		echo mysql-community-server mysql-community-server/re-root-pass password ''; \
+		echo mysql-community-server mysql-community-server/remove-test-db select false; \
+	} | debconf-set-selections \
+	&& apt-get update \
+	&& apt-get install -y \
+		mysql-community-client="${MYSQL_VERSION}" \
+		mysql-community-server-core="${MYSQL_VERSION}" \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& rm -rf /var/lib/mysql && mkdir -p /var/lib/mysql /var/run/mysqld \
+	&& chown -R mysql:mysql /var/lib/mysql /var/run/mysqld \
+# ensure that /var/run/mysqld (used for socket and lock files) is writable regardless of the UID our mysqld instance ends up having at runtime
+	&& chmod 1777 /var/run/mysqld /var/lib/mysql
+
+VOLUME /var/lib/mysql
+
+# Config files
+COPY config/ /etc/mysql/
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN ln -s usr/local/bin/docker-entrypoint.sh /entrypoint.sh # backwards compat
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+EXPOSE 3306 33060
+CMD ["mysqld"]
+```
+## 컨테이너 만들어 보기 (실습)  
