@@ -1064,4 +1064,668 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 EXPOSE 3306 33060
 CMD ["mysqld"]
 ```
-## 컨테이너 만들어 보기 (실습)  
+## 컨테이너 만들어 보기 (실습)
+### nodejs 애플리케이션 컨테이너 만들기(hellojs)
+- 운영 환경: node.js
+  - docker hub에서 검색
+
+![docker_hub](./images/docker_hub.png)  
+- 실행 소스: hello.js  
+```bash
+gusami@docker-ubuntu:~$pwd
+/home/gusami
+# 폴더 생성
+gusami@docker-ubuntu:~$mkdir hellojs
+gusami@docker-ubuntu:~$cd hellojs
+# javascript file 생성
+gusami@docker-ubuntu:~/hellojs$cat > hello.js 
+const http = require('http');
+const os = require('os');
+console.log("Test server starting...");
+
+var handler = function(request, response) {
+    console.log("Received request from " + request.connection.remoteAddress);
+    response.writeHead(200);
+    response.end("Container Hostname: " + os.hostname() + "\n");
+};
+
+var www = http.createServer(handler);
+www.listen(8080);
+```
+- dockerfile 생성
+  - ``node:12`` base image를 이용한 운영 환경 구축
+  - 작성한 ``hello.js``를 Container의 루트 디렉토리로 복사
+  - Container 실행 시, ``node /hello.js`` 명령어 실행
+```bash
+gusami@docker-ubuntu:~/hellojs$vi dockerfile
+FROM node:12
+COPY hello.js /
+CMD ["node", "/hello.js"]
+```
+- docker image build (using dockerfile)
+```bash
+# dockerfile이 있는 디렉토리에서 "docker" 명령어를 수행
+# 그리고, 마지막의 '.'은 hello.js가 현재 디렉토리에 존재한다는 것을 의미
+# 또한, docker host의 작업디렉토리를 의미
+# 결론적으로, 3개의 이미지 파일이 생성됨(dockerfile의 라인 1개당 이미지 파일 한개 생성)
+gusami@docker-ubuntu:~/hellojs$docker build -t hellojs:latest .
+Sending build context to Docker daemon  3.072kB
+Step 1/3 : FROM node:12
+12: Pulling from library/node
+a44d60f8dd45: Pull complete 
+6368c5e70521: Pull complete 
+4c54a7a0d119: Pull complete 
+2c33912b65a4: Pull complete 
+606725a9d1d2: Pull complete 
+7a25133c4863: Pull complete 
+9cecf40ae924: Pull complete 
+d8e17fed4bb7: Pull complete 
+994ae5bc8f9c: Pull complete 
+Digest: sha256:d05817b72690a7efb4fc484074212a9b13503e4652ce65d4a7321e3bc8e22e58
+Status: Downloaded newer image for node:12
+ ---> 0812db557c77
+Step 2/3 : COPY hello.js /
+ ---> 15eb8a9b298c
+Step 3/3 : CMD ["node", "/hello.js"]
+ ---> Running in fa3bdfecf1e1
+Removing intermediate container fa3bdfecf1e1
+ ---> 78ac1c2b6aa1
+Successfully built 78ac1c2b6aa1
+Successfully tagged hellojs:latest
+```
+- 생성한 이미지 확인
+```bash
+gusami@docker-ubuntu:~$docker image ls
+REPOSITORY    TAG       IMAGE ID       CREATED         SIZE
+hellojs       latest    78ac1c2b6aa1   3 minutes ago   918MB
+node          12        0812db557c77   3 days ago      918MB
+nginx         latest    f652ca386ed1   2 weeks ago     141MB
+hello-world   latest    feb5d9fea6a5   2 months ago    13.3kB
+```
+- Container 실행
+```bash
+gusami@docker-ubuntu:~/webserver$docker run -d -p 9093:8080 --name web hellojs
+7be0a1a46a74dcc8871bdf47939d6cb310185101bcbda1a7a5bf03e4294b7805
+# 실행 중인 container 확인
+gusami@docker-ubuntu:~/webserver$docker ps 
+CONTAINER ID   IMAGE     COMMAND                  CREATED         STATUS         PORTS                                       NAMES
+7be0a1a46a74   hellojs   "docker-entrypoint.s…"   6 seconds ago   Up 5 seconds   0.0.0.0:9093->8080/tcp, :::9093->8080/tcp   web
+# 웹서버에 접속해 보기
+gusami@docker-ubuntu:~/webserver$ curl localhost:9093
+Container Hostname: 7be0a1a46a74
+```
+- 실행중인 docker Container 삭제
+```bash
+# -f 옵션: 실행중인 container 강제 종료 및 제거
+gusami@docker-ubuntu:~/webserver$docker rm -f web
+web
+```
+### Ubuntu 기반의 웹서버 Container 만들기
+- docker hub에서 ``httpd``를 검색해서 dockerfile을 한번 살펴보기
+- apache webserver를 위한 dockerfile 작성하기
+```bash
+gusami@docker-ubuntu:~$mkdir webserver
+gusami@docker-ubuntu:~$cd webserver/
+gusami@docker-ubuntu:~/webserver$vim dockerfile
+FROM ubuntu:18.04
+LABEL maintainer="KyuSahm Kim<gusami32@gmail.com>"
+
+# install apache
+# shell "&&" operator => if previous command is executed successfully, next command is executed.
+# because one command makes one layer, "&&" operator can decrease the number of layers.
+# Install apache web server in container
+RUN apt-get update \
+    && apt-get install -y apache2
+
+# Modify index.html
+RUN echo "Welcome to the KyuSahm's WebServer" > /var/www/html/index.html
+
+# Expose 80 port to allow external program to access it
+EXPOSE 80
+
+# "apache2ctl" is the command to start service daemon of apache web server
+CMD ["/usr/sbin/apache2ctl", "-DFOREGROUND"]
+```
+- 이미지 빌드하기
+```bash
+gusami@docker-ubuntu:~/webserver$docker build -t webserver:1.0.0 .
+Sending build context to Docker daemon   2.56kB
+Step 1/6 : FROM ubuntu:18.04
+18.04: Pulling from library/ubuntu
+284055322776: Pull complete 
+Digest: sha256:0fedbd5bd9fb72089c7bbca476949e10593cebed9b1fb9edf5b79dbbacddd7d6
+Status: Downloaded newer image for ubuntu:18.04
+ ---> 5a214d77f5d7
+Step 2/6 : LABEL maintainer="KyuSahm Kim<gusami32@gmail.com>"
+ ---> Running in fb20d56cffd5
+Removing intermediate container fb20d56cffd5
+ ---> 8ec114839bb8
+Step 3/6 : RUN apt-get update     && apt-get install -y apache2
+ ---> Running in 2c3c5e1641c5
+Get:1 http://archive.ubuntu.com/ubuntu bionic InRelease [242 kB]
+Get:2 http://security.ubuntu.com/ubuntu bionic-security InRelease [88.7 kB]
+Get:3 http://security.ubuntu.com/ubuntu bionic-security/multiverse amd64 Packages [26.8 kB]
+Get:4 http://security.ubuntu.com/ubuntu bionic-security/restricted amd64 Packages [691 kB]
+Get:5 http://archive.ubuntu.com/ubuntu bionic-updates InRelease [88.7 kB]
+Get:6 http://archive.ubuntu.com/ubuntu bionic-backports InRelease [74.6 kB]
+Get:7 http://archive.ubuntu.com/ubuntu bionic/main amd64 Packages [1344 kB]
+Get:8 http://security.ubuntu.com/ubuntu bionic-security/main amd64 Packages [2461 kB]
+Get:9 http://archive.ubuntu.com/ubuntu bionic/restricted amd64 Packages [13.5 kB]
+Get:10 http://archive.ubuntu.com/ubuntu bionic/universe amd64 Packages [11.3 MB]
+Get:11 http://security.ubuntu.com/ubuntu bionic-security/universe amd64 Packages [1452 kB]
+
+Get:12 http://archive.ubuntu.com/ubuntu bionic/multiverse amd64 Packages [186 kB]
+Get:13 http://archive.ubuntu.com/ubuntu bionic-updates/universe amd64 Packages [2230 kB]
+Get:14 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 Packages [2898 kB]
+Get:15 http://archive.ubuntu.com/ubuntu bionic-updates/multiverse amd64 Packages [34.4 kB]
+Get:16 http://archive.ubuntu.com/ubuntu bionic-updates/restricted amd64 Packages [725 kB]
+Get:17 http://archive.ubuntu.com/ubuntu bionic-backports/main amd64 Packages [11.6 kB]
+Get:18 http://archive.ubuntu.com/ubuntu bionic-backports/universe amd64 Packages [12.6 kB]
+Fetched 23.9 MB in 1min 14s (324 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  apache2-bin apache2-data apache2-utils file libapr1 libaprutil1
+  libaprutil1-dbd-sqlite3 libaprutil1-ldap libasn1-8-heimdal libexpat1
+  libgdbm-compat4 libgdbm5 libgssapi3-heimdal libhcrypto4-heimdal
+  libheimbase1-heimdal libheimntlm0-heimdal libhx509-5-heimdal libicu60
+  libkrb5-26-heimdal libldap-2.4-2 libldap-common liblua5.2-0 libmagic-mgc
+  libmagic1 libnghttp2-14 libperl5.26 libroken18-heimdal libsasl2-2
+  libsasl2-modules libsasl2-modules-db libsqlite3-0 libssl1.1 libwind0-heimdal
+  libxml2 mime-support netbase openssl perl perl-modules-5.26 ssl-cert
+  xz-utils
+Suggested packages:
+  www-browser apache2-doc apache2-suexec-pristine | apache2-suexec-custom ufw
+  gdbm-l10n libsasl2-modules-gssapi-mit | libsasl2-modules-gssapi-heimdal
+  libsasl2-modules-ldap libsasl2-modules-otp libsasl2-modules-sql
+  ca-certificates perl-doc libterm-readline-gnu-perl
+  | libterm-readline-perl-perl make openssl-blacklist
+The following NEW packages will be installed:
+  apache2 apache2-bin apache2-data apache2-utils file libapr1 libaprutil1
+  libaprutil1-dbd-sqlite3 libaprutil1-ldap libasn1-8-heimdal libexpat1
+  libgdbm-compat4 libgdbm5 libgssapi3-heimdal libhcrypto4-heimdal
+  libheimbase1-heimdal libheimntlm0-heimdal libhx509-5-heimdal libicu60
+  libkrb5-26-heimdal libldap-2.4-2 libldap-common liblua5.2-0 libmagic-mgc
+  libmagic1 libnghttp2-14 libperl5.26 libroken18-heimdal libsasl2-2
+  libsasl2-modules libsasl2-modules-db libsqlite3-0 libssl1.1 libwind0-heimdal
+  libxml2 mime-support netbase openssl perl perl-modules-5.26 ssl-cert
+  xz-utils
+0 upgraded, 42 newly installed, 0 to remove and 1 not upgraded.
+Need to get 21.0 MB of archives.
+After this operation, 99.4 MB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 perl-modules-5.26 all 5.26.1-6ubuntu0.5 [2762 kB]
+Get:2 http://archive.ubuntu.com/ubuntu bionic/main amd64 libgdbm5 amd64 1.14.1-6 [26.0 kB]
+Get:3 http://archive.ubuntu.com/ubuntu bionic/main amd64 libgdbm-compat4 amd64 1.14.1-6 [6084 B]
+Get:4 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libperl5.26 amd64 5.26.1-6ubuntu0.5 [3534 kB]
+Get:5 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 perl amd64 5.26.1-6ubuntu0.5 [201 kB]
+Get:6 http://archive.ubuntu.com/ubuntu bionic/main amd64 mime-support all 3.60ubuntu1 [30.1 kB]
+Get:7 http://archive.ubuntu.com/ubuntu bionic/main amd64 libapr1 amd64 1.6.3-2 [90.9 kB]
+Get:8 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libexpat1 amd64 2.2.5-3ubuntu0.2 [80.5 kB]
+Get:9 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libssl1.1 amd64 1.1.1-1ubuntu2.1~18.04.14 [1302 kB]
+Get:10 http://archive.ubuntu.com/ubuntu bionic/main amd64 libaprutil1 amd64 1.6.1-2 [84.4 kB]
+Get:11 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libsqlite3-0 amd64 3.22.0-1ubuntu0.4 [499 kB]
+Get:12 http://archive.ubuntu.com/ubuntu bionic/main amd64 libaprutil1-dbd-sqlite3 amd64 1.6.1-2 [10.6 kB]
+Get:13 http://archive.ubuntu.com/ubuntu bionic/main amd64 libroken18-heimdal amd64 7.5.0+dfsg-1 [41.3 kB]
+Get:14 http://archive.ubuntu.com/ubuntu bionic/main amd64 libasn1-8-heimdal amd64 7.5.0+dfsg-1 [175 kB]
+Get:15 http://archive.ubuntu.com/ubuntu bionic/main amd64 libheimbase1-heimdal amd64 7.5.0+dfsg-1 [29.3 kB]
+Get:16 http://archive.ubuntu.com/ubuntu bionic/main amd64 libhcrypto4-heimdal amd64 7.5.0+dfsg-1 [85.9 kB]
+Get:17 http://archive.ubuntu.com/ubuntu bionic/main amd64 libwind0-heimdal amd64 7.5.0+dfsg-1 [47.8 kB]
+Get:18 http://archive.ubuntu.com/ubuntu bionic/main amd64 libhx509-5-heimdal amd64 7.5.0+dfsg-1 [107 kB]
+Get:19 http://archive.ubuntu.com/ubuntu bionic/main amd64 libkrb5-26-heimdal amd64 7.5.0+dfsg-1 [206 kB]
+Get:20 http://archive.ubuntu.com/ubuntu bionic/main amd64 libheimntlm0-heimdal amd64 7.5.0+dfsg-1 [14.8 kB]
+Get:21 http://archive.ubuntu.com/ubuntu bionic/main amd64 libgssapi3-heimdal amd64 7.5.0+dfsg-1 [96.5 kB]
+Get:22 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libsasl2-modules-db amd64 2.1.27~101-g0780600+dfsg-3ubuntu2.3 [15.0 kB]
+Get:23 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libsasl2-2 amd64 2.1.27~101-g0780600+dfsg-3ubuntu2.3 [49.2 kB]
+Get:24 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libldap-common all 2.4.45+dfsg-1ubuntu1.10 [15.8 kB]
+Get:25 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libldap-2.4-2 amd64 2.4.45+dfsg-1ubuntu1.10 [154 kB]
+Get:26 http://archive.ubuntu.com/ubuntu bionic/main amd64 libaprutil1-ldap amd64 1.6.1-2 [8764 B]
+Get:27 http://archive.ubuntu.com/ubuntu bionic/main amd64 liblua5.2-0 amd64 5.2.4-1.1build1 [108 kB]
+Get:28 http://archive.ubuntu.com/ubuntu bionic/main amd64 libnghttp2-14 amd64 1.30.0-1ubuntu1 [77.8 kB]
+Get:29 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libicu60 amd64 60.2-3ubuntu3.2 [8050 kB]
+Get:30 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libxml2 amd64 2.9.4+dfsg1-6.1ubuntu1.4 [664 kB]
+Get:31 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 apache2-bin amd64 2.4.29-1ubuntu4.20 [1071 kB]
+Get:32 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 apache2-utils amd64 2.4.29-1ubuntu4.20 [84.2 kB]
+Get:33 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 apache2-data all 2.4.29-1ubuntu4.20 [160 kB]
+Get:34 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 apache2 amd64 2.4.29-1ubuntu4.20 [95.1 kB]
+Get:35 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libmagic-mgc amd64 1:5.32-2ubuntu0.4 [184 kB]
+Get:36 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libmagic1 amd64 1:5.32-2ubuntu0.4 [68.6 kB]
+Get:37 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 file amd64 1:5.32-2ubuntu0.4 [22.1 kB]
+Get:38 http://archive.ubuntu.com/ubuntu bionic/main amd64 netbase all 5.4 [12.7 kB]
+Get:39 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 openssl amd64 1.1.1-1ubuntu2.1~18.04.14 [613 kB]
+Get:40 http://archive.ubuntu.com/ubuntu bionic/main amd64 xz-utils amd64 5.2.2-1.3 [83.8 kB]
+Get:41 http://archive.ubuntu.com/ubuntu bionic-updates/main amd64 libsasl2-modules amd64 2.1.27~101-g0780600+dfsg-3ubuntu2.3 [48.9 kB]
+Get:42 http://archive.ubuntu.com/ubuntu bionic/main amd64 ssl-cert all 1.0.39 [17.0 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 21.0 MB in 1min 20s (263 kB/s)
+Selecting previously unselected package perl-modules-5.26.
+(Reading database ... 4051 files and directories currently installed.)
+Preparing to unpack .../00-perl-modules-5.26_5.26.1-6ubuntu0.5_all.deb ...
+Unpacking perl-modules-5.26 (5.26.1-6ubuntu0.5) ...
+Selecting previously unselected package libgdbm5:amd64.
+Preparing to unpack .../01-libgdbm5_1.14.1-6_amd64.deb ...
+Unpacking libgdbm5:amd64 (1.14.1-6) ...
+Selecting previously unselected package libgdbm-compat4:amd64.
+Preparing to unpack .../02-libgdbm-compat4_1.14.1-6_amd64.deb ...
+Unpacking libgdbm-compat4:amd64 (1.14.1-6) ...
+Selecting previously unselected package libperl5.26:amd64.
+Preparing to unpack .../03-libperl5.26_5.26.1-6ubuntu0.5_amd64.deb ...
+Unpacking libperl5.26:amd64 (5.26.1-6ubuntu0.5) ...
+Selecting previously unselected package perl.
+Preparing to unpack .../04-perl_5.26.1-6ubuntu0.5_amd64.deb ...
+Unpacking perl (5.26.1-6ubuntu0.5) ...
+Selecting previously unselected package mime-support.
+Preparing to unpack .../05-mime-support_3.60ubuntu1_all.deb ...
+Unpacking mime-support (3.60ubuntu1) ...
+Selecting previously unselected package libapr1:amd64.
+Preparing to unpack .../06-libapr1_1.6.3-2_amd64.deb ...
+Unpacking libapr1:amd64 (1.6.3-2) ...
+Selecting previously unselected package libexpat1:amd64.
+Preparing to unpack .../07-libexpat1_2.2.5-3ubuntu0.2_amd64.deb ...
+Unpacking libexpat1:amd64 (2.2.5-3ubuntu0.2) ...
+Selecting previously unselected package libssl1.1:amd64.
+Preparing to unpack .../08-libssl1.1_1.1.1-1ubuntu2.1~18.04.14_amd64.deb ...
+Unpacking libssl1.1:amd64 (1.1.1-1ubuntu2.1~18.04.14) ...
+Selecting previously unselected package libaprutil1:amd64.
+Preparing to unpack .../09-libaprutil1_1.6.1-2_amd64.deb ...
+Unpacking libaprutil1:amd64 (1.6.1-2) ...
+Selecting previously unselected package libsqlite3-0:amd64.
+Preparing to unpack .../10-libsqlite3-0_3.22.0-1ubuntu0.4_amd64.deb ...
+Unpacking libsqlite3-0:amd64 (3.22.0-1ubuntu0.4) ...
+Selecting previously unselected package libaprutil1-dbd-sqlite3:amd64.
+Preparing to unpack .../11-libaprutil1-dbd-sqlite3_1.6.1-2_amd64.deb ...
+Unpacking libaprutil1-dbd-sqlite3:amd64 (1.6.1-2) ...
+Selecting previously unselected package libroken18-heimdal:amd64.
+Preparing to unpack .../12-libroken18-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libroken18-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libasn1-8-heimdal:amd64.
+Preparing to unpack .../13-libasn1-8-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libasn1-8-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libheimbase1-heimdal:amd64.
+Preparing to unpack .../14-libheimbase1-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libheimbase1-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libhcrypto4-heimdal:amd64.
+Preparing to unpack .../15-libhcrypto4-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libhcrypto4-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libwind0-heimdal:amd64.
+Preparing to unpack .../16-libwind0-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libwind0-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libhx509-5-heimdal:amd64.
+Preparing to unpack .../17-libhx509-5-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libhx509-5-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libkrb5-26-heimdal:amd64.
+Preparing to unpack .../18-libkrb5-26-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libkrb5-26-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libheimntlm0-heimdal:amd64.
+Preparing to unpack .../19-libheimntlm0-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libheimntlm0-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libgssapi3-heimdal:amd64.
+Preparing to unpack .../20-libgssapi3-heimdal_7.5.0+dfsg-1_amd64.deb ...
+Unpacking libgssapi3-heimdal:amd64 (7.5.0+dfsg-1) ...
+Selecting previously unselected package libsasl2-modules-db:amd64.
+Preparing to unpack .../21-libsasl2-modules-db_2.1.27~101-g0780600+dfsg-3ubuntu2.3_amd64.deb ...
+Unpacking libsasl2-modules-db:amd64 (2.1.27~101-g0780600+dfsg-3ubuntu2.3) ...
+Selecting previously unselected package libsasl2-2:amd64.
+Preparing to unpack .../22-libsasl2-2_2.1.27~101-g0780600+dfsg-3ubuntu2.3_amd64.deb ...
+Unpacking libsasl2-2:amd64 (2.1.27~101-g0780600+dfsg-3ubuntu2.3) ...
+Selecting previously unselected package libldap-common.
+Preparing to unpack .../23-libldap-common_2.4.45+dfsg-1ubuntu1.10_all.deb ...
+Unpacking libldap-common (2.4.45+dfsg-1ubuntu1.10) ...
+Selecting previously unselected package libldap-2.4-2:amd64.
+Preparing to unpack .../24-libldap-2.4-2_2.4.45+dfsg-1ubuntu1.10_amd64.deb ...
+Unpacking libldap-2.4-2:amd64 (2.4.45+dfsg-1ubuntu1.10) ...
+Selecting previously unselected package libaprutil1-ldap:amd64.
+Preparing to unpack .../25-libaprutil1-ldap_1.6.1-2_amd64.deb ...
+Unpacking libaprutil1-ldap:amd64 (1.6.1-2) ...
+Selecting previously unselected package liblua5.2-0:amd64.
+Preparing to unpack .../26-liblua5.2-0_5.2.4-1.1build1_amd64.deb ...
+Unpacking liblua5.2-0:amd64 (5.2.4-1.1build1) ...
+Selecting previously unselected package libnghttp2-14:amd64.
+Preparing to unpack .../27-libnghttp2-14_1.30.0-1ubuntu1_amd64.deb ...
+Unpacking libnghttp2-14:amd64 (1.30.0-1ubuntu1) ...
+Selecting previously unselected package libicu60:amd64.
+Preparing to unpack .../28-libicu60_60.2-3ubuntu3.2_amd64.deb ...
+Unpacking libicu60:amd64 (60.2-3ubuntu3.2) ...
+Selecting previously unselected package libxml2:amd64.
+Preparing to unpack .../29-libxml2_2.9.4+dfsg1-6.1ubuntu1.4_amd64.deb ...
+Unpacking libxml2:amd64 (2.9.4+dfsg1-6.1ubuntu1.4) ...
+Selecting previously unselected package apache2-bin.
+Preparing to unpack .../30-apache2-bin_2.4.29-1ubuntu4.20_amd64.deb ...
+Unpacking apache2-bin (2.4.29-1ubuntu4.20) ...
+Selecting previously unselected package apache2-utils.
+Preparing to unpack .../31-apache2-utils_2.4.29-1ubuntu4.20_amd64.deb ...
+Unpacking apache2-utils (2.4.29-1ubuntu4.20) ...
+Selecting previously unselected package apache2-data.
+Preparing to unpack .../32-apache2-data_2.4.29-1ubuntu4.20_all.deb ...
+Unpacking apache2-data (2.4.29-1ubuntu4.20) ...
+Selecting previously unselected package apache2.
+Preparing to unpack .../33-apache2_2.4.29-1ubuntu4.20_amd64.deb ...
+Unpacking apache2 (2.4.29-1ubuntu4.20) ...
+Selecting previously unselected package libmagic-mgc.
+Preparing to unpack .../34-libmagic-mgc_1%3a5.32-2ubuntu0.4_amd64.deb ...
+Unpacking libmagic-mgc (1:5.32-2ubuntu0.4) ...
+Selecting previously unselected package libmagic1:amd64.
+Preparing to unpack .../35-libmagic1_1%3a5.32-2ubuntu0.4_amd64.deb ...
+Unpacking libmagic1:amd64 (1:5.32-2ubuntu0.4) ...
+Selecting previously unselected package file.
+Preparing to unpack .../36-file_1%3a5.32-2ubuntu0.4_amd64.deb ...
+Unpacking file (1:5.32-2ubuntu0.4) ...
+Selecting previously unselected package netbase.
+Preparing to unpack .../37-netbase_5.4_all.deb ...
+Unpacking netbase (5.4) ...
+Selecting previously unselected package openssl.
+Preparing to unpack .../38-openssl_1.1.1-1ubuntu2.1~18.04.14_amd64.deb ...
+Unpacking openssl (1.1.1-1ubuntu2.1~18.04.14) ...
+Selecting previously unselected package xz-utils.
+Preparing to unpack .../39-xz-utils_5.2.2-1.3_amd64.deb ...
+Unpacking xz-utils (5.2.2-1.3) ...
+Selecting previously unselected package libsasl2-modules:amd64.
+Preparing to unpack .../40-libsasl2-modules_2.1.27~101-g0780600+dfsg-3ubuntu2.3_amd64.deb ...
+Unpacking libsasl2-modules:amd64 (2.1.27~101-g0780600+dfsg-3ubuntu2.3) ...
+Selecting previously unselected package ssl-cert.
+Preparing to unpack .../41-ssl-cert_1.0.39_all.deb ...
+Unpacking ssl-cert (1.0.39) ...
+Setting up libapr1:amd64 (1.6.3-2) ...
+Setting up libexpat1:amd64 (2.2.5-3ubuntu0.2) ...
+Setting up libicu60:amd64 (60.2-3ubuntu3.2) ...
+Setting up libnghttp2-14:amd64 (1.30.0-1ubuntu1) ...
+Setting up mime-support (3.60ubuntu1) ...
+Setting up libldap-common (2.4.45+dfsg-1ubuntu1.10) ...
+Setting up libsasl2-modules-db:amd64 (2.1.27~101-g0780600+dfsg-3ubuntu2.3) ...
+Setting up libsasl2-2:amd64 (2.1.27~101-g0780600+dfsg-3ubuntu2.3) ...
+Setting up apache2-data (2.4.29-1ubuntu4.20) ...
+Setting up libroken18-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up perl-modules-5.26 (5.26.1-6ubuntu0.5) ...
+Setting up libgdbm5:amd64 (1.14.1-6) ...
+Setting up libxml2:amd64 (2.9.4+dfsg1-6.1ubuntu1.4) ...
+Setting up libmagic-mgc (1:5.32-2ubuntu0.4) ...
+Setting up libmagic1:amd64 (1:5.32-2ubuntu0.4) ...
+Setting up libssl1.1:amd64 (1.1.1-1ubuntu2.1~18.04.14) ...
+debconf: unable to initialize frontend: Dialog
+debconf: (TERM is not set, so the dialog frontend is not usable.)
+debconf: falling back to frontend: Readline
+Setting up xz-utils (5.2.2-1.3) ...
+update-alternatives: using /usr/bin/xz to provide /usr/bin/lzma (lzma) in auto mode
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzma.1.gz because associated file /usr/share/man/man1/xz.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/unlzma.1.gz because associated file /usr/share/man/man1/unxz.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzcat.1.gz because associated file /usr/share/man/man1/xzcat.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzmore.1.gz because associated file /usr/share/man/man1/xzmore.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzless.1.gz because associated file /usr/share/man/man1/xzless.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzdiff.1.gz because associated file /usr/share/man/man1/xzdiff.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzcmp.1.gz because associated file /usr/share/man/man1/xzcmp.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzgrep.1.gz because associated file /usr/share/man/man1/xzgrep.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzegrep.1.gz because associated file /usr/share/man/man1/xzegrep.1.gz (of link group lzma) doesn't exist
+update-alternatives: warning: skip creation of /usr/share/man/man1/lzfgrep.1.gz because associated file /usr/share/man/man1/xzfgrep.1.gz (of link group lzma) doesn't exist
+Setting up libaprutil1:amd64 (1.6.1-2) ...
+Setting up libheimbase1-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up openssl (1.1.1-1ubuntu2.1~18.04.14) ...
+Setting up libsqlite3-0:amd64 (3.22.0-1ubuntu0.4) ...
+Setting up liblua5.2-0:amd64 (5.2.4-1.1build1) ...
+Setting up libgdbm-compat4:amd64 (1.14.1-6) ...
+Setting up libsasl2-modules:amd64 (2.1.27~101-g0780600+dfsg-3ubuntu2.3) ...
+Setting up netbase (5.4) ...
+Setting up libwind0-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up libaprutil1-dbd-sqlite3:amd64 (1.6.1-2) ...
+Setting up apache2-utils (2.4.29-1ubuntu4.20) ...
+Setting up libasn1-8-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up libhcrypto4-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up ssl-cert (1.0.39) ...
+debconf: unable to initialize frontend: Dialog
+debconf: (TERM is not set, so the dialog frontend is not usable.)
+debconf: falling back to frontend: Readline
+Setting up file (1:5.32-2ubuntu0.4) ...
+Setting up libhx509-5-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up libperl5.26:amd64 (5.26.1-6ubuntu0.5) ...
+Setting up libkrb5-26-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up libheimntlm0-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up perl (5.26.1-6ubuntu0.5) ...
+Setting up libgssapi3-heimdal:amd64 (7.5.0+dfsg-1) ...
+Setting up libldap-2.4-2:amd64 (2.4.45+dfsg-1ubuntu1.10) ...
+Setting up libaprutil1-ldap:amd64 (1.6.1-2) ...
+Setting up apache2-bin (2.4.29-1ubuntu4.20) ...
+Setting up apache2 (2.4.29-1ubuntu4.20) ...
+Enabling module mpm_event.
+Enabling module authz_core.
+Enabling module authz_host.
+Enabling module authn_core.
+Enabling module auth_basic.
+Enabling module access_compat.
+Enabling module authn_file.
+Enabling module authz_user.
+Enabling module alias.
+Enabling module dir.
+Enabling module autoindex.
+Enabling module env.
+Enabling module mime.
+Enabling module negotiation.
+Enabling module setenvif.
+Enabling module filter.
+Enabling module deflate.
+Enabling module status.
+Enabling module reqtimeout.
+Enabling conf charset.
+Enabling conf localized-error-pages.
+Enabling conf other-vhosts-access-log.
+Enabling conf security.
+Enabling conf serve-cgi-bin.
+Enabling site 000-default.
+invoke-rc.d: could not determine current runlevel
+invoke-rc.d: policy-rc.d denied execution of start.
+Processing triggers for libc-bin (2.27-3ubuntu1.4) ...
+Removing intermediate container 2c3c5e1641c5
+ ---> e7e59a004b58
+Step 4/6 : RUN echo "Welcome to the KyuSahm's WebServer" > /var/www/html/index.html
+ ---> Running in a8600b3a9959
+Removing intermediate container a8600b3a9959
+ ---> 339c8a3dd45e
+Step 5/6 : EXPOSE 80
+ ---> Running in db078be98e63
+Removing intermediate container db078be98e63
+ ---> 3b91053f9e59
+Step 6/6 : CMD ["/usr/sbin/apache2ctl", "-DFOREGROUND"]
+ ---> Running in f5cc7ac15d68
+Removing intermediate container f5cc7ac15d68
+ ---> 7d57f2bc0206
+Successfully built 7d57f2bc0206
+Successfully tagged webserver:1.0.0
+```
+- 빌드된 이미지 확인하기
+```bash
+gusami@docker-ubuntu:~/webserver$docker image ls
+REPOSITORY    TAG       IMAGE ID       CREATED          SIZE
+webserver     1.0.0     7d57f2bc0206   2 minutes ago    198MB
+hellojs       latest    78ac1c2b6aa1   27 minutes ago   918MB
+node          12        0812db557c77   3 days ago       918MB
+nginx         latest    f652ca386ed1   2 weeks ago      141MB
+ubuntu        18.04     5a214d77f5d7   2 months ago     63.1MB
+hello-world   latest    feb5d9fea6a5   2 months ago     13.3kB
+```
+- Container 실행
+```bash
+# "-d" option: detach. Run container in background and print container ID
+gusami@docker-ubuntu:~/webserver$docker run -d -p 80:80 --name web webserver:1.0.0
+f30bf7b3f794da5ad59b283ed3c9d3f7854cfc743d1a1aff7dadfe2a008d2191
+# 실행 중인 docker container 확인
+gusami@docker-ubuntu:~/webserver$docker ps 
+CONTAINER ID   IMAGE             COMMAND                  CREATED              STATUS              PORTS                               NAMES
+f30bf7b3f794   webserver:1.0.0   "/usr/sbin/apache2ct…"   About a minute ago   Up About a minute   0.0.0.0:80->80/tcp, :::80->80/tcp   web
+# webserver에 접속해 보기
+gusami@docker-ubuntu:~/webserver$ curl localhost:80
+Welcome to the KyuSahm's WebServer
+```
+- 실행중인 docker Container 삭제
+```bash
+# -f 옵션: 실행중인 container 강제 종료 및 제거
+gusami@docker-ubuntu:~/webserver$docker rm -f web
+web
+```
+### Container 배포하기
+- 로그인
+```bash
+gusami@docker-ubuntu:~/webserver$ docker login
+Login with your Docker ID to push and pull images from Docker Hub. If you don't have a Docker ID, head over to https://hub.docker.com to create one.
+Username: gusami32
+Password: 
+WARNING! Your password will be stored unencrypted in /home/gusami/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+```
+- 나의 docker hub 계정에 올리기 위해서는 나의 ID가 tag되어 있어야 함
+```bash
+gusami@docker-ubuntu:~/webserver$docker tag --help
+
+Usage:  docker tag SOURCE_IMAGE[:TAG] TARGET_IMAGE[:TAG]
+
+Create a tag TARGET_IMAGE that refers to SOURCE_IMAGE
+gusami@docker-ubuntu:~/webserver$docker tag webserver:1.0.0 gusami32/webserver:1.0.0 
+gusami@docker-ubuntu:~/webserver$docker tag hellojs:latest gusami32/hellojs:latest
+gusami@docker-ubuntu:~/webserver$docker image ls
+REPOSITORY           TAG       IMAGE ID       CREATED          SIZE
+gusami32/webserver   1.0.0     7d57f2bc0206   20 minutes ago   198MB
+webserver            1.0.0     7d57f2bc0206   20 minutes ago   198MB
+gusami32/hellojs     latest    78ac1c2b6aa1   46 minutes ago   918MB
+hellojs              latest    78ac1c2b6aa1   46 minutes ago   918MB
+node                 12        0812db557c77   3 days ago       918MB
+nginx                latest    f652ca386ed1   2 weeks ago      141MB
+ubuntu               18.04     5a214d77f5d7   2 months ago     63.1MB
+hello-world          latest    feb5d9fea6a5   2 months ago     13.3kB
+```
+- 나의 docker hub 계정에 올리기
+```bash
+gusami@docker-ubuntu:~/webserver$docker push gusami32/webserver:1.0.0
+The push refers to repository [docker.io/gusami32/webserver]
+43b82bf54815: Pushed 
+6f6bcc7b0f1a: Pushed 
+824bf068fd3d: Mounted from library/ubuntu 
+1.0.0: digest: sha256:7ddddf6b9ad883014f7d5fcf1f57a386444a573a2a98b00982dd38f793f58b81 size: 948
+gusami@docker-ubuntu:~/webserver$docker push gusami32/hellojs
+Using default tag: latest
+The push refers to repository [docker.io/gusami32/hellojs]
+23993ba6c255: Pushed 
+044b68c4a0b1: Mounted from library/node 
+5275ff3f50c8: Mounted from library/node 
+36be080e2ade: Mounted from library/node 
+55823126b05f: Mounted from library/node 
+91eb86c8ecf7: Mounted from library/node 
+f3e1b4e2605e: Mounted from library/node 
+0acac778a9df: Mounted from library/node 
+702f151bcfb1: Mounted from library/node 
+577c48e0521b: Mounted from library/node 
+latest: digest: sha256:659445c552e6702d22c33e107adbbf2605bc39851d33c16b792e4f1dada12ba2 size: 2422
+```
+![docker_hub_images.png](./images/docker_hub_images.png)
+### 문제 풀이
+#### 주어진 Script를 실행하는 Container를 빌드하시오
+- Container 이름: fortune:20.02
+- dockerfile의 내용
+  - base image: debian
+  - 컨테이너에 아래의 webpage.sh 파일을 복사
+```bash
+#!/bin/bash
+mkdir /htdocs
+while:
+do
+  /usr/games/fortune > /htdocs/index.html
+  sleep 10
+done
+```
+- Container에 fortune 애플리케이션 설치: apt-get install fortune
+- Container 실행 시 저장한 webpage.sh가 실행되도록 구성
+```bash
+gusami@docker-ubuntu:~$mkdir exercise
+gusami@docker-ubuntu:~$cd exercise
+# webpage.sh 파일 생성
+gusami@docker-ubuntu:~/exercise$vi webpage.sh
+#!/bin/bash
+mkdir /htdocs
+while:
+do
+  /usr/games/fortune > /htdocs/index.html
+  sleep 10
+done
+# 실행 권한 주기
+gusami@docker-ubuntu:~/exercise$chmod 777 webpage.sh
+# dockerfile 생성
+gusami@docker-ubuntu:~/exercise$vi dockerfile
+FROM debian
+LABEL maintainer="KyuSahm Kim<gusami32@gmail.com>"
+
+# copy shell script to root directory
+COPY webpage.sh /
+
+# Install fortune in container
+RUN apt-get update \
+    && apt-get install -y fortune
+
+# execute shell script
+CMD ["/webpage.sh"]
+# docker image 파일 빌드
+gusami@docker-ubuntu:~/exercise$docker build -t fortune:21.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/5 : FROM debian
+ ---> 6f4986d78878
+Step 2/5 : LABEL maintainer="KyuSahm Kim<gusami32@gmail.com>"
+ ---> Using cache
+ ---> c176753ebf96
+Step 3/5 : COPY webpage.sh /
+ ---> cfddfffaf7f0
+Step 4/5 : RUN apt-get update     && apt-get install -y fortune
+ ---> Running in ecfaf811abfe
+Get:1 http://security.debian.org/debian-security bullseye-security InRelease [44.1 kB]
+Get:2 http://security.debian.org/debian-security bullseye-security/main amd64 Packages [100 kB]
+Get:3 http://deb.debian.org/debian bullseye InRelease [116 kB]
+Get:4 http://deb.debian.org/debian bullseye-updates InRelease [39.4 kB]
+Get:5 http://deb.debian.org/debian bullseye/main amd64 Packages [8183 kB]
+Get:6 http://deb.debian.org/debian bullseye-updates/main amd64 Packages [2592 B]
+Fetched 8485 kB in 5s (1646 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  fortunes-min librecode0
+Suggested packages:
+  fortunes x11-utils bsdmainutils
+The following NEW packages will be installed:
+  fortune-mod fortunes-min librecode0
+0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.
+Need to get 648 kB of archives.
+After this operation, 2154 kB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian bullseye/main amd64 librecode0 amd64 3.6-24 [531 kB]
+Get:2 http://deb.debian.org/debian bullseye/main amd64 fortune-mod amd64 1:1.99.1-7.1 [49.3 kB]
+Get:3 http://deb.debian.org/debian bullseye/main amd64 fortunes-min all 1:1.99.1-7.1 [67.9 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 648 kB in 3s (192 kB/s)
+Selecting previously unselected package librecode0:amd64.
+(Reading database ... 6653 files and directories currently installed.)
+Preparing to unpack .../librecode0_3.6-24_amd64.deb ...
+Unpacking librecode0:amd64 (3.6-24) ...
+Selecting previously unselected package fortune-mod.
+Preparing to unpack .../fortune-mod_1%3a1.99.1-7.1_amd64.deb ...
+Unpacking fortune-mod (1:1.99.1-7.1) ...
+Selecting previously unselected package fortunes-min.
+Preparing to unpack .../fortunes-min_1%3a1.99.1-7.1_all.deb ...
+Unpacking fortunes-min (1:1.99.1-7.1) ...
+Setting up librecode0:amd64 (3.6-24) ...
+Setting up fortunes-min (1:1.99.1-7.1) ...
+Setting up fortune-mod (1:1.99.1-7.1) ...
+Processing triggers for libc-bin (2.31-13+deb11u2) ...
+Removing intermediate container ecfaf811abfe
+ ---> 13f34f8723ca
+Step 5/5 : CMD ["/webpage.sh"]
+ ---> Running in 48cf399e3f30
+Removing intermediate container 48cf399e3f30
+ ---> 97d1a419f2e4
+Successfully built 97d1a419f2e4
+Successfully tagged fortune:21.0
+# docker container 실행
+gusami@docker-ubuntu:~/exercise$docker run -d --name kks-fortune fortune:21.0 
+f5e49254647389b6a39b1e0febd23e1817c2bd93a5bf7d53c749d0eb063f29e1
+# 실행완료된 docker container 목록
+gusami@docker-ubuntu:~/exercise$ docker ps -a
+CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS                      PORTS     NAMES
+280ec0ddad41   fortune:21.0   "/webpage.sh"            10 seconds ago   Exited (2) 9 seconds ago              kks-fortune
+```
