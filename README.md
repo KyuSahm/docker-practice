@@ -1729,3 +1729,46 @@ gusami@docker-ubuntu:~/exercise$ docker ps -a
 CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS                      PORTS     NAMES
 280ec0ddad41   fortune:21.0   "/webpage.sh"            10 seconds ago   Exited (2) 9 seconds ago              kks-fortune
 ```
+## Container 보관 창고
+- Docker Registry
+### 질문
+- Q1. Container 보관 창고(Register)가 있어요?
+- Q2. Docker hub(registry)를 사용하고 싶어요.
+- Q3. Private Registry를 구축하고 싶어오.
+### Container 보관 창고(Register)
+- Registry: Container image들을 저장하는 저장소
+  - Public Registry: Docker Hub. hub.docker.com
+  - Private Registry: 사내의 Container 저장소
+#### Docker Hub 사용하기
+- https://hub.docker.com/
+- image 종류: Official Images, Verified Publicsher, etc
+- 로컬에서 이미지 검색
+  - ``$docker search "keyword"``
+```bash
+[gusami@docker-centos ~]$docker search "nginx"
+NAME                              DESCRIPTION                                     STARS     OFFICIAL   AUTOMATED
+nginx                             Official build of Nginx.                        16014     [OK]       
+jwilder/nginx-proxy               Automated Nginx reverse proxy for docker con…   2103                 [OK]
+richarvey/nginx-php-fpm           Container running Nginx + PHP-FPM capable of…   820                  [OK]
+jc21/nginx-proxy-manager          Docker container for managing Nginx proxy ho…   296                  
+linuxserver/nginx                 An Nginx container, brought to you by LinuxS…   161                  
+tiangolo/nginx-rtmp               Docker image with Nginx using the nginx-rtmp…   148                  [OK]
+jlesage/nginx-proxy-manager       Docker container for Nginx Proxy Manager        147                  [OK]
+alfg/nginx-rtmp                   NGINX, nginx-rtmp-module and FFmpeg from sou…   112                  [OK]
+nginxdemos/hello                  NGINX webserver that serves a simple page co…   80                   [OK]
+...
+```  
+#### Private Registry 구축하기
+- ``registry Container``를 이용해 Private Container 운영
+  - docker hub 사이트 > Explorer > 화면 좌측에 ``Official Image`` 클릭
+    - 이미지 중에 docker ``registry``를 클릭
+    - Docker hub를 운영할 수 있게 도와주는 container image
+    - ``The Docker Registry 2.0 implementation for storing and distributing Docker images``
+```bash
+$docker run -d -p 5000:5000 --restart always --name registry registry:2
+```
+![docker_private_registry](./images/docker_private_registry.png)
+- image repository
+  - ``{docker hostname}:{Port}/{image name}``을 통해 다운로드 및 업로드가 가능
+  - ``localhost:5000/ubuntu:18.04``
+  - ``docker.example.com:5000/ubuntu:18.04``
