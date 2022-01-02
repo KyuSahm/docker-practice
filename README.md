@@ -1937,3 +1937,237 @@ latest: digest: sha256:57c1e4ff150e2782a25c8cebb80b574f81f06b74944caf972f27e21b7
 root@docker-ubuntu:/var/lib/docker/volumes/53e07ad5ca384aac45f4b420ab55c29ead990bb49b45b2a1ff4f7edda7d9c7a1/_data/docker/registry/v2/repositories#ls
 httpd_test
 ```
+## Docker Container 사용 방법
+- Container Image 관리
+- Container Image 실행, 삭제
+- 실행 중인 Container 관리
+### Container Life Cycle
+- Step 01. Container Image download
+  - ``$docker pull 이미지이름:태그``
+- Step 02. Container 실행
+  - ``$docker run 이미지이름:태그``
+- Step 03. 실행중인 Container 관리
+
+![docker_lifecycle](./images/docker_lifecycle.png)
+### Container Image 관리 방법
+- Docker hub내의 Container image 검색
+  - ``docker search [option] <이미지이름:태그명>``
+  - 예: ``$docker search nginx``
+- Container image 다운로드
+  - ``docker pull [option] <이미지이름:태그명>``
+  - Tag를 생략하면, 기본적으로 latest를 가져옴
+  - 예: ``$docker pull nginx:1.14``
+- 다운받은 Container image 목록 출력
+  - ``docker image ls`` 또는 ``docker images``
+- 다운받은 Container image 상세보기
+  - ``docker inspect [option] <이미지이름:태그명>``
+- 다운받은 Container image 삭제
+  - ``docker rmi [option] <이미지이름>``
+```bash
+root@docker-ubuntu:~# docker search --help
+
+Usage:  docker search [OPTIONS] TERM
+
+Search the Docker Hub for images
+
+Options:
+  -f, --filter filter   Filter output based on conditions provided
+      --format string   Pretty-print search using a Go template
+      --limit int       Max number of search results (default 25)
+      --no-trunc        Do not truncate output
+# nginx:latest 이미지 상세보기
+gusami@docker-ubuntu:~$docker inspect nginx
+[
+    {
+        "Id": "sha256:f652ca386ed135a4cbe356333e08ef0816f81b2ac8d0619af01e2b256837ed3e",
+        "RepoTags": [
+            "nginx:latest"
+        ],
+        "RepoDigests": [
+            "nginx@sha256:9522864dd661dcadfd9958f9e0de192a1fdda2c162a35668ab6ac42b465f0603"
+        ],
+        "Parent": "",
+        "Comment": "",
+        "Created": "2021-12-02T10:59:29.428210249Z",
+        "Container": "ff6520e1505fbd3417637e0055ad5d9df9741ef00ea2eb071a66edd455523786",
+        "ContainerConfig": {
+            "Hostname": "ff6520e1505f",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "80/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NGINX_VERSION=1.21.4",
+                "NJS_VERSION=0.7.0",
+                "PKG_RELEASE=1~bullseye"
+            ],
+            "Cmd": [
+                "/bin/sh",
+                "-c",
+                "#(nop) ",
+                "CMD [\"nginx\" \"-g\" \"daemon off;\"]"
+            ],
+            "Image": "sha256:8a8299cee5cdb563ce3a473654db88cf74cd8c85b1b930ae19e79efed345d260",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": [
+                "/docker-entrypoint.sh"
+            ],
+            "OnBuild": null,
+            "Labels": {
+                "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>"
+            },
+            "StopSignal": "SIGQUIT"
+        },
+        "DockerVersion": "20.10.7",
+        "Author": "",
+        "Config": {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "80/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NGINX_VERSION=1.21.4",
+                "NJS_VERSION=0.7.0",
+                "PKG_RELEASE=1~bullseye"
+            ],
+            "Cmd": [
+                "nginx",
+                "-g",
+                "daemon off;"
+            ],
+            "Image": "sha256:8a8299cee5cdb563ce3a473654db88cf74cd8c85b1b930ae19e79efed345d260",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": [
+                "/docker-entrypoint.sh"
+            ],
+            "OnBuild": null,
+            "Labels": {
+                "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>"
+            },
+            "StopSignal": "SIGQUIT"
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 141490839,
+        "VirtualSize": 141490839,
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/4576390776f4daafd0e07a5b3a88bee2df4ec195e3598e6376df28d87c060d41/diff:/var/lib/docker/overlay2/6d4b7d6f9be0010639e125d174f623fd9f5972aacf8f8fe8af1bacde6648d4d9/diff:/var/lib/docker/overlay2/6e95d5578380d1d3b2291d1b00c3d17a6407d78a04488a276421ce0b00c415f9/diff:/var/lib/docker/overlay2/ce1c2b29c3602d08cc0b56f1805aeb22659b64d45ce58c703d2c781541451376/diff:/var/lib/docker/overlay2/7da02fd3d3ba3d663cea7eb47a2efe23e0a62f902cc1e9586dde6f410c955ef2/diff",
+                "MergedDir": "/var/lib/docker/overlay2/895a8b414b39370cf72fd748998cd1d11a55b08b95aa69d82e692787debd5202/merged",
+                "UpperDir": "/var/lib/docker/overlay2/895a8b414b39370cf72fd748998cd1d11a55b08b95aa69d82e692787debd5202/diff",
+                "WorkDir": "/var/lib/docker/overlay2/895a8b414b39370cf72fd748998cd1d11a55b08b95aa69d82e692787debd5202/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:9321ff862abbe8e1532076e5fdc932371eff562334ac86984a836d77dfb717f5",
+                "sha256:0664b7821b6050b321b14cdede97c2079ae45aff22beb4a42f7595294f5be62d",
+                "sha256:c9fcd9c6ced8b793a0ad4f93820c1d51d94c3b1fca93000d93e9e8eefa6fdb38",
+                "sha256:d3e1dca44e8225cdd06b6bf7cdfc847e3ab9f09ab6aeefb006e2e8f02f0dd26c",
+                "sha256:82caad489ad7bc7e1ae6f17bb1e9ade2bca44a41a07cc8c5587af8a2de2f536a",
+                "sha256:2bed47a66c07ecddfea2bc9c128d81b31272d99b69aff1fb4edc079c4dbf56e7"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "0001-01-01T00:00:00Z"
+        }
+    }
+]
+```
+### Container 실행 및 종료
+- ``docker create [option] <image name:tag name>``
+  - 다운받은 Container image를 container application 생성
+  - 실행까지는 되지 않은 상태  
+  - 예: ``$docker create --name webserver nginx:1.14``
+- ``docker start [option] <container name>``
+  - container application 실행
+  - 예: ``$docker start webserver``
+- ``docker run [option] <image name:tag name>``
+  - container image 다운로드 후, container application 생성 및 실행
+  - ``docker pull + docker create + docker start``를 한번에 수행
+  - 예: ``$docker run --name webserver -d nginx:1.14``
+- ``docker ps [option]``
+  - 생성, 실행 중이거나 종료된 container 목록 확인
+  - 예 (실행 중이거나 종료된 container 목록): ``$docker ps -a``
+- ``docker inspect <container name>``
+  - 리소스 사용 현황, 프로세스 ID, IP Address 등 상세내용 확인
+  - 예: ``$docker inspect webserver``
+- ``docker stop [option] <container name>``
+  - 실행 중인 container를 정지시킴
+  - 예: ``$docker stop webserver``
+- ``docker rm [option] <container name>``
+  - 생성 또는 실행 중인 container를 삭제
+  - Container image는 삭제되지 않음
+  - 예: ``$docker rm webserver``
+
+![docker_container_exec_lifecycle](./images/docker_container_exec_lifecycle.png)
+### 실행 중인 Container 관리
+- ``$docker ps [option]``
+  - 생성, 실행 중이거나 종료된 container 목록 확인
+  - 예 (실행 중인 container 목록): ``$docker ps``
+- ``$docker top [option] <container name>``
+  - 실행 중인 Container 내부에 실행 중인 프로세스 목록 확인
+  - 예: ``$docker top webserver``
+- ``$docker logs [option] <container name>``
+  - 실행 중인 Container의 로그 정보 확인
+  - 예: ``$docker logs webserver``
+  - 예 (실시간으로 계속 확인): ``$docker logs -f webserver``
+- ``$docker exec [option] <container name> <command>``
+  - 실행 중인 Container내의 추가 명령어 실행
+  - 예: ``$docker exec -it webserver /bin/bash``
+- ``$docker attach [option] <container name>``
+  - Forground로 실행 중인 Container에 연결
+  - 주의 사항: Forground로 attach되면, ``Ctrl + C``하면 container process가 죽음
+  - 예: ``$docker attach centos``
+```bash
+# docker image 다운로드, 생성 및 실행
+gusami@docker-ubuntu:~$docker run --name webserver -d nginx
+da271163eeab41af6895aeeb38b7a9a24c392c5a0b9b36069ba810b7420428c5
+# 실행 중인 Container 내부의 프로세스 목록 확인
+gusami@docker-ubuntu:~$docker top webserver
+UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD
+root                3557                3533                0                   21:15               ?                   00:00:00            nginx: master process nginx -g daemon off;
+systemd+            3609                3557                0                   21:15               ?                   00:00:00            nginx: worker process
+systemd+            3610                3557                0                   21:15               ?                   00:00:00            nginx: worker process
+# docker container 로그 확인
+gusami@docker-ubuntu:~$docker logs webserver
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2022/01/02 12:15:12 [notice] 1#1: using the "epoll" event method
+2022/01/02 12:15:12 [notice] 1#1: nginx/1.21.4
+2022/01/02 12:15:12 [notice] 1#1: built by gcc 10.2.1 20210110 (Debian 10.2.1-6) 
+2022/01/02 12:15:12 [notice] 1#1: OS: Linux 5.11.0-41-generic
+2022/01/02 12:15:12 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+2022/01/02 12:15:12 [notice] 1#1: start worker processes
+2022/01/02 12:15:12 [notice] 1#1: start worker process 32
+2022/01/02 12:15:12 [notice] 1#1: start worker process 33
+```
+### Docker Container 사용방법 - 실습편
+6-2
