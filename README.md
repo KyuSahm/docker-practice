@@ -1770,5 +1770,170 @@ $docker run -d -p 5000:5000 --restart always --name registry registry:2
 ![docker_private_registry](./images/docker_private_registry.png)
 - image repository
   - ``{docker hostname}:{Port}/{image name}``을 통해 다운로드 및 업로드가 가능
-  - ``localhost:5000/ubuntu:18.04``
-  - ``docker.example.com:5000/ubuntu:18.04``
+    - 예시 1: ``localhost:5000/ubuntu:18.04``
+    - 예시 2: ``docker.example.com:5000/ubuntu:18.04``
+### Public Registry 운영 실습
+#### Public Registry에 Container 다운로드
+- 웹 브라우저를 이용
+  - https://hub.docker.com/에 로그인 후, 사용
+- Command line의 명령어를 이용
+  - ``docker search <search name>`` 명령어를 사용해서 DockerHub에서 검색
+    - image의 ``NAME`` 또는 ``DESCRIPTION``에서 해당 이름을 찾음
+  - ``docker pull <image name>`` 명령어를 사용해서 DockerHub에서 해당 이미지를 로컬로 다운로드
+  - ``docker image ls`` 또는 ``docker images`` 명령어를 이용해서 다운받은 이미지를 로컬에서 확인 
+```bash
+# Docker Hub에서 검색.
+# STARS: 별점수, OFFICIAL: 공식 이미지 여부
+gusami@docker-ubuntu:~$docker search httpd
+NAME                                    DESCRIPTION                                     STARS     OFFICIAL   AUTOMATED
+httpd                                   The Apache HTTP Server Project                  3816      [OK]       
+centos/httpd-24-centos7                 Platform for running Apache httpd 2.4 or bui…   40                   
+centos/httpd                                                                            34                   [OK]
+arm32v7/httpd                           The Apache HTTP Server Project                  10
+......
+# Docker Hub에서 이미지 다운로드
+gusami@docker-ubuntu:~$docker pull httpd:latest
+latest: Pulling from library/httpd
+a2abf6c4d29d: Pull complete 
+dcc4698797c8: Pull complete 
+41c22baa66ec: Pull complete 
+67283bbdd4a0: Pull complete 
+d982c879c57e: Pull complete 
+Digest: sha256:0954cc1af252d824860b2c5dc0a10720af2b7a3d3435581ca788dff8480c7b32
+Status: Downloaded newer image for httpd:latest
+docker.io/library/httpd:latest
+# 다운받은 이미지를 로컬에서 확인
+gusami@docker-ubuntu:~$docker images
+REPOSITORY           TAG       IMAGE ID       CREATED        SIZE
+fortune              21.0      97d1a419f2e4   11 days ago    145MB
+<none>               <none>    eae66f2b344b   11 days ago    124MB
+gusami32/webserver   1.0.0     7d57f2bc0206   11 days ago    198MB
+webserver            1.0.0     7d57f2bc0206   11 days ago    198MB
+gusami32/hellojs     latest    78ac1c2b6aa1   11 days ago    918MB
+hellojs              latest    78ac1c2b6aa1   11 days ago    918MB
+httpd                latest    dabbfbe0c57b   12 days ago    144MB
+debian               latest    6f4986d78878   12 days ago    124MB
+node                 12        0812db557c77   2 weeks ago    918MB
+nginx                latest    f652ca386ed1   4 weeks ago    141MB
+ubuntu               18.04     5a214d77f5d7   3 months ago   63.1MB
+hello-world          latest    feb5d9fea6a5   3 months ago   13.3kB
+gusami@docker-ubuntu:~$docker image ls
+REPOSITORY           TAG       IMAGE ID       CREATED        SIZE
+fortune              21.0      97d1a419f2e4   11 days ago    145MB
+<none>               <none>    eae66f2b344b   11 days ago    124MB
+gusami32/webserver   1.0.0     7d57f2bc0206   11 days ago    198MB
+webserver            1.0.0     7d57f2bc0206   11 days ago    198MB
+gusami32/hellojs     latest    78ac1c2b6aa1   11 days ago    918MB
+hellojs              latest    78ac1c2b6aa1   11 days ago    918MB
+httpd                latest    dabbfbe0c57b   12 days ago    144MB
+debian               latest    6f4986d78878   12 days ago    124MB
+node                 12        0812db557c77   2 weeks ago    918MB
+nginx                latest    f652ca386ed1   4 weeks ago    141MB
+ubuntu               18.04     5a214d77f5d7   3 months ago   63.1MB
+hello-world          latest    feb5d9fea6a5   3 months ago   13.3kB
+
+```
+#### Public Registry에 Container 업로드
+- Public Registry(Docker Hub)에 자신의 계정으로 로그인하기
+  - ``docker login`` 명령어를 사용
+```bash
+# password encryption file stored in /home/gusami/.docker/config.json
+gusami@docker-ubuntu:~$ docker login
+Authenticating with existing credentials...
+WARNING! Your password will be stored unencrypted in /home/gusami/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+```
+- 다운받은 ``httpd`` official image를 내 계정에 업로드 할 수 있을까?
+  - Repository의 이름에 나의 계정(gusami32)에 업로드한다는 정보가 없어서 불가능
+  - ``docker tag`` 명령어를 이용해서 나의 계정을 포함한 target image tag를 생성한 후, 가능
+  - ``docker push <image name>``을 이용해서 docker hub의 나의 계정에 업로드
+    - 누구든지 어디서든 다운로드 가능함
+```bash
+# httpd docker image 정보 확인
+gusami@docker-ubuntu:~$docker images httpd
+REPOSITORY   TAG       IMAGE ID       CREATED       SIZE
+httpd        latest    dabbfbe0c57b   12 days ago   144MB
+
+gusami@docker-ubuntu:~$docker tag --help
+
+Usage:  docker tag SOURCE_IMAGE[:TAG] TARGET_IMAGE[:TAG]
+
+Create a tag TARGET_IMAGE that refers to SOURCE_IMAGE
+# target image tag 생성
+gusami@docker-ubuntu:~$docker tag httpd:latest gusami32/httpd:latest
+# target image tag 생성확인
+gusami@docker-ubuntu:~$docker images gusami32/httpd
+REPOSITORY       TAG       IMAGE ID       CREATED       SIZE
+gusami32/httpd   latest    dabbfbe0c57b   12 days ago   144MB
+# upload docker image into docker hub's my repository
+gusami@docker-ubuntu:~$docker push gusami32/httpd:latest
+The push refers to repository [docker.io/gusami32/httpd]
+deefaa620a71: Mounted from library/httpd 
+9cff3206f9a6: Mounted from library/httpd 
+15e4bf5d0804: Mounted from library/httpd 
+1da636a1aa95: Mounted from library/httpd 
+2edcec3590a4: Mounted from library/httpd 
+latest: digest: sha256:57c1e4ff150e2782a25c8cebb80b574f81f06b74944caf972f27e21b76074194 size: 1365
+```
+![docker_uploaded_image](./images/docker_uploaded_image.png)
+### Private Registry 운영 실습
+- 외부의 접근을 차단해서 운영 가능
+- 사내에서만 사용하는 Registry 운영 가능
+#### Private Registry 구축하기
+- ``registry Container``를 이용해 Private Container 운영
+  - docker hub 사이트 > Explorer > 화면 좌측에 ``Official Image`` 클릭
+    - 이미지 중에 docker ``registry``를 클릭
+    - Docker hub를 운영할 수 있게 도와주는 container image
+    - ``The Docker Registry 2.0 implementation for storing and distributing Docker images``
+
+![docker_registry_container](./images/docker_private_registry.png)
+- local registry 생성
+  - ``docker run`` 명령어를 사용
+```bash
+# docker registry image download 및 container 생성
+gusami@docker-ubuntu:~$docker run -d -p 5000:5000 --restart always --name registry registry:2
+Unable to find image 'registry:2' locally
+2: Pulling from library/registry
+79e9f2f55bf5: Pull complete 
+0d96da54f60b: Pull complete 
+5b27040df4a2: Pull complete 
+e2ead8259a04: Pull complete 
+3790aef225b9: Pull complete 
+Digest: sha256:169211e20e2f2d5d115674681eb79d21a217b296b43374b8e39f97fcf866b375
+Status: Downloaded newer image for registry:2
+77d5a666867c9c5b57365e4a54a35861fe677ee8929b6ea3e66df8b73be12a9b
+# private registry container 실행 확인
+gusami@docker-ubuntu:~$docker ps
+CONTAINER ID   IMAGE        COMMAND                  CREATED              STATUS              PORTS                                       NAMES
+77d5a666867c   registry:2   "/entrypoint.sh /etc…"   About a minute ago   Up About a minute   0.0.0.0:5000->5000/tcp, :::5000->5000/tcp   registry
+# local host name 확인
+gusami@docker-ubuntu:~$hostname
+docker-ubuntu.example.com
+```
+- private image repository를 사용하는 방법
+  - ``{docker hostname}:{Port}/{image name}``로 taget image tag를 생성한 후, 다운로드 및 업로드
+    - 예시 1: ``localhost:5000/ubuntu:18.04``
+    - 예시 2: ``docker.example.com:5000/ubuntu:18.04``
+```bash
+# target image tag 생성
+gusami@docker-ubuntu:~$docker tag httpd:latest localhost:5000/httpd_test:latest
+# target image 생성 확인
+gusami@docker-ubuntu:~$docker images localhost:5000/httpd_test:latest
+REPOSITORY                  TAG       IMAGE ID       CREATED       SIZE
+localhost:5000/httpd_test   latest    dabbfbe0c57b   12 days ago   144MB
+# upload image into private registry
+gusami@docker-ubuntu:~$docker push localhost:5000/httpd_test:latest
+The push refers to repository [localhost:5000/httpd_test]
+deefaa620a71: Pushed 
+9cff3206f9a6: Pushed 
+15e4bf5d0804: Pushed 
+1da636a1aa95: Pushed 
+2edcec3590a4: Pushed 
+latest: digest: sha256:57c1e4ff150e2782a25c8cebb80b574f81f06b74944caf972f27e21b76074194 size: 1365
+# upload한 컨테이너 확인
+root@docker-ubuntu:/var/lib/docker/volumes/53e07ad5ca384aac45f4b420ab55c29ead990bb49b45b2a1ff4f7edda7d9c7a1/_data/docker/registry/v2/repositories#ls
+httpd_test
+```
