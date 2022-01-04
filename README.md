@@ -2170,4 +2170,557 @@ gusami@docker-ubuntu:~$docker logs webserver
 2022/01/02 12:15:12 [notice] 1#1: start worker process 33
 ```
 ### Docker Container 사용방법 - 실습편
-6-2
+#### Container Image 관리 명령어
+- Container Image 검색
+  - ``docker search <image name>``
+  - ``OFFICIAL``: column name for offcial image
+  - ``STARS``: Start given by users
+  - ``NAME``: <Vendor Name or Community or User Id / image name>
+```bash
+[gusami@docker-centos ~]$docker search nginx
+NAME                              DESCRIPTION                                     STARS     OFFICIAL   AUTOMATED
+nginx                             Official build of Nginx.                        16068     [OK]       
+jwilder/nginx-proxy               Automated Nginx reverse proxy for docker con…   2106                 [OK]
+richarvey/nginx-php-fpm           Container running Nginx + PHP-FPM capable of…   819                  [OK]
+jc21/nginx-proxy-manager          Docker container for managing Nginx proxy ho…   305                  
+linuxserver/nginx                 An Nginx container, brought to you by LinuxS…   161                  
+tiangolo/nginx-rtmp               Docker image with Nginx using the nginx-rtmp…   148                  [OK]
+jlesage/nginx-proxy-manager       Docker container for Nginx Proxy Manager        148                  [OK]
+alfg/nginx-rtmp                   NGINX, nginx-rtmp-module and FFmpeg from sou…   112                  [OK]
+....
+```
+- tag name: Docker Hub 사이트에서 확인
+- Container Download
+  - ``docker pull nginx[:version]``: ``[:version]`` 생략 시 latest 버전
+```bash
+# nginx 1.14 version download
+[gusami@docker-centos ~]$docker pull nginx:1.14
+1.14: Pulling from library/nginx
+27833a3ba0a5: Pull complete 
+0f23e58bd0b7: Pull complete 
+8ca774778e85: Pull complete 
+Digest: sha256:f7988fb6c02e0ce69257d9bd9cf37ae20a60f1df7563c3a2a6abe24160306b8d
+Status: Downloaded newer image for nginx:1.14
+docker.io/library/nginx:1.14
+```
+- 다운로드 받은 이미지 확인
+  - ``docker images`` or ``docker image ls``
+  - ``docker images --no-trunc``: 이미지 이름을 full name 형태로 보여줌
+```bash
+gusami@docker-centos ~]$docker image ls
+REPOSITORY   TAG       IMAGE ID       CREATED       SIZE
+nginx        1.14      295c7be07902   2 years ago   109MB
+[gusami@docker-centos ~]$docker images
+REPOSITORY   TAG       IMAGE ID       CREATED       SIZE
+nginx        1.14      295c7be07902   2 years ago   109MB
+# 최신 버전의 mysql container image download
+[gusami@docker-centos ~]$docker pull mysql
+Using default tag: latest
+latest: Pulling from library/mysql
+72a69066d2fe: Pull complete 
+93619dbc5b36: Pull complete 
+99da31dd6142: Pull complete 
+626033c43d70: Pull complete 
+37d5d7efb64e: Pull complete 
+ac563158d721: Pull complete 
+d2ba16033dad: Pull complete 
+688ba7d5c01a: Pull complete 
+00e060b6d11d: Pull complete 
+1c04857f594f: Pull complete 
+4d7cfa90e6ea: Pull complete 
+e0431212d27d: Pull complete 
+Digest: sha256:e9027fe4d91c0153429607251656806cc784e914937271037f7738bd5b8e7709
+Status: Downloaded newer image for mysql:latest
+docker.io/library/mysql:latest
+# 다운받은 이미지 확인
+[gusami@docker-centos ~]$docker images
+REPOSITORY   TAG       IMAGE ID       CREATED       SIZE
+mysql        latest    3218b38490ce   2 weeks ago   516MB
+nginx        1.14      295c7be07902   2 years ago   109MB
+# 최신 버전과 동일한 8 version download
+[gusami@docker-centos ~]$docker pull mysql:8
+8: Pulling from library/mysql
+Digest: sha256:e9027fe4d91c0153429607251656806cc784e914937271037f7738bd5b8e7709
+Status: Downloaded newer image for mysql:8
+docker.io/library/mysql:8
+# 다운받은 이미지 확인
+# mysql:8과 mysql:latest는 tag명은 다르지만, 동일한 image id를 가지는 실제 동일한 이미지임
+[gusami@docker-centos ~]$docker images
+REPOSITORY   TAG       IMAGE ID       CREATED       SIZE
+mysql        8         3218b38490ce   2 weeks ago   516MB
+mysql        latest    3218b38490ce   2 weeks ago   516MB
+nginx        1.14      295c7be07902   2 years ago   109MB
+# docker images 명령어 도움말
+[gusami@docker-centos ~]$docker images --help
+
+Usage:  docker images [OPTIONS] [REPOSITORY[:TAG]]
+
+List images
+
+Options:
+  -a, --all             Show all images (default hides intermediate images)
+      --digests         Show digests
+  -f, --filter filter   Filter output based on conditions provided
+      --format string   Pretty-print images using a Go template
+      --no-trunc        Do not truncate output
+  -q, --quiet           Only show image IDs
+# docker image 이름을 full name 형태로 보여줌  
+[gusami@docker-centos ~]$docker images --no-trunc
+REPOSITORY   TAG       IMAGE ID                                                                  CREATED       SIZE
+mysql        8         sha256:3218b38490cec8d31976a40b92e09d61377359eab878db49f025e5d464367f3b   2 weeks ago   516MB
+mysql        latest    sha256:3218b38490cec8d31976a40b92e09d61377359eab878db49f025e5d464367f3b   2 weeks ago   516MB
+nginx        1.14      sha256:295c7be079025306c4f1d65997fcf7adb411c88f139ad1d34b537164aa060369   2 years ago   109MB
+```
+#### Container 실행 및 운영
+- 현재 동작 중인 Container 표시
+  - ``docker ps``
+- 생성, 실행 및 종료된 모든 container application 표시  
+  - ``docker ps -a`` 
+```bash
+[gusami@docker-centos ~]$ docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAME
+```
+- Container application 생성
+  - 실행은 하지 않음
+  - ``docker create --name <Container Name> <image name:tag name>``
+```bash
+# Container application 생성
+[gusami@docker-centos ~]$docker create --name webserver nginx:1.14
+c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd
+# 생성된 Container application 확인(-a option). STATUS가 "Created"임
+[gusami@docker-centos ~]$docker ps -a
+CONTAINER ID   IMAGE        COMMAND                  CREATED          STATUS    PORTS     NAMES
+c0bf16b4e6eb   nginx:1.14   "nginx -g 'daemon of…"   52 seconds ago   Created             webserver
+```
+- Container 실행
+  - ``docker start <container name>``
+```bash
+# webserver container application 실행
+gusami@docker-centos ~]$docker start webserver
+webserver
+# 실행 중인 container application 확인. STATUS가 "Up 시간"로 표시
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE        COMMAND                  CREATED         STATUS         PORTS     NAMES
+c0bf16b4e6eb   nginx:1.14   "nginx -g 'daemon of…"   3 minutes ago   Up 5 seconds   80/tcp    webserver
+```
+- Container 세부 정보 확인
+  - 할당 받은 IP Address와 Gateway 정보등을 포함한 네트워크 정보
+  - Resource 정보 및 Volume mount 정보
+  - ``docker inspect <Container name>``
+```bash
+[gusami@docker-centos ~]$docker inspect webserver
+[
+    {
+        "Id": "c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd",
+        "Created": "2022-01-04T11:25:34.858031529Z",
+        "Path": "nginx",
+        "Args": [
+            "-g",
+            "daemon off;"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 2324,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2022-01-04T11:28:48.140551476Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:295c7be079025306c4f1d65997fcf7adb411c88f139ad1d34b537164aa060369",
+        "ResolvConfPath": "/var/lib/docker/containers/c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd/hostname",
+        "HostsPath": "/var/lib/docker/containers/c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd/hosts",
+        "LogPath": "/var/lib/docker/containers/c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd/c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd-json.log",
+        "Name": "/webserver",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "default",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "host",
+            "Dns": [],
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "KernelMemory": 0,
+            "KernelMemoryTCP": 0,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": false,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/asound",
+                "/proc/acpi",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/6cfab4b1314c4892b62f68751e0898ef7cc455bb8a4d416aa9567c327fc72bfc-init/diff:/var/lib/docker/overlay2/8b964e81442e0ec334197d35dfbed4482d5281218465f1eac9fd13fba9be317f/diff:/var/lib/docker/overlay2/dc05718ae0a820ae6918cbc0b57dcd4fc381d2e606de63034ccf101ec6dbb42d/diff:/var/lib/docker/overlay2/5785acc0075f5505c86648553dadbab16a73c41f3b56a1fd671f1d99237a1c73/diff",
+                "MergedDir": "/var/lib/docker/overlay2/6cfab4b1314c4892b62f68751e0898ef7cc455bb8a4d416aa9567c327fc72bfc/merged",
+                "UpperDir": "/var/lib/docker/overlay2/6cfab4b1314c4892b62f68751e0898ef7cc455bb8a4d416aa9567c327fc72bfc/diff",
+                "WorkDir": "/var/lib/docker/overlay2/6cfab4b1314c4892b62f68751e0898ef7cc455bb8a4d416aa9567c327fc72bfc/work"
+            },
+            "Name": "overlay2"
+        },
+        "Mounts": [],
+        "Config": {
+            "Hostname": "c0bf16b4e6eb",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "ExposedPorts": {
+                "80/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NGINX_VERSION=1.14.2-1~stretch",
+                "NJS_VERSION=1.14.2.0.2.6-1~stretch"
+            ],
+            "Cmd": [
+                "nginx",
+                "-g",
+                "daemon off;"
+            ],
+            "Image": "nginx:1.14",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": {
+                "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>"
+            },
+            "StopSignal": "SIGTERM"
+        },
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "d217de7fd52335df5ecb158c08a4f29aa8e865d83bafec141d3a363a363f1607",
+            "HairpinMode": false,
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "Ports": {
+                "80/tcp": null
+            },
+            "SandboxKey": "/var/run/docker/netns/d217de7fd523",
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "EndpointID": "c5a6caef4f4620a92a8ae2bdaaaf43d84a7cbc31f02ea13b8e2eaf10ec76b4ca",
+            "Gateway": "172.17.0.1",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "172.17.0.2",
+            "IPPrefixLen": 16,
+            "IPv6Gateway": "",
+            "MacAddress": "02:42:ac:11:00:02",
+            "Networks": {
+                "bridge": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "NetworkID": "452a27c1c6a82160eb214a8e62616d1eaf6bd0a563ebb55b20317a4e4d4e1f6b",
+                    "EndpointID": "c5a6caef4f4620a92a8ae2bdaaaf43d84a7cbc31f02ea13b8e2eaf10ec76b4ca",
+                    "Gateway": "172.17.0.1",
+                    "IPAddress": "172.17.0.2",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:ac:11:00:02",
+                    "DriverOpts": null
+                }
+            }
+        }
+    }
+]
+# 원하는 정보(ip address)만 확인
+[gusami@docker-centos ~]$docker inspect --format '{{.NetworkSettings.IPAddress}}' webserver
+172.17.0.2
+# alias를 이용한 명령어 alias 등록
+[gusami@docker-centos ~]$alias cip="docker inspect --format '{{.NetworkSettings.IPAddress}}'"
+[gusami@docker-centos ~]$cip webserver
+172.17.0.2
+# 등록된 alias 확인
+[gusami@docker-centos ~]$alias
+alias cip='docker inspect --format '\''{{.NetworkSettings.IPAddress}}'\'''
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias grep='grep --color=auto'
+alias l.='ls -d .* --color=auto'
+alias ll='ls -l --color=auto'
+alias ls='ls --color=auto'
+alias vi='vim'
+alias which='alias | /usr/bin/which --tty-only --read-alias --show-dot --show-tilde'
+# container IP에 접속해서 테스트
+[gusami@docker-centos ~]$curl 172.17.0.2
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+# 없는 페이지에 접속해서 404 에러 확인
+[gusami@docker-centos ~]$curl 172.17.0.2/a.html
+<html>
+<head><title>404 Not Found</title></head>
+<body bgcolor="white">
+<center><h1>404 Not Found</h1></center>
+<hr><center>nginx/1.14.2</center>
+</body>
+</html>
+```
+- Container가 만들어 낸 로그 출력
+  - ``docker logs <container name>``
+  - ``docker logs -f <container name>``: 실시간 로그 확인
+```bash
+[gusami@docker-centos ~]$docker logs webserver
+172.17.0.1 - - [04/Jan/2022:11:43:18 +0000] "GET / HTTP/1.1" 200 612 "-" "curl/7.29.0" "-"
+172.17.0.1 - - [04/Jan/2022:11:44:25 +0000] "GET /a.html HTTP/1.1" 404 169 "-" "curl/7.29.0" "-"
+2022/01/04 11:44:25 [error] 7#7: *2 open() "/usr/share/nginx/html/a.html" failed (2: No such file or directory), client: 172.17.0.1, server: localhost, request: "GET /a.html HTTP/1.1", host: "172.17.0.2"
+172.17.0.1 - - [04/Jan/2022:11:44:30 +0000] "GET /index.html HTTP/1.1" 200 612 "-" "curl/7.29.0" "-"
+[gusami@docker-centos ~]$docker logs -f webserver
+172.17.0.1 - - [04/Jan/2022:11:43:18 +0000] "GET / HTTP/1.1" 200 612 "-" "curl/7.29.0" "-"
+172.17.0.1 - - [04/Jan/2022:11:44:25 +0000] "GET /a.html HTTP/1.1" 404 169 "-" "curl/7.29.0" "-"
+2022/01/04 11:44:25 [error] 7#7: *2 open() "/usr/share/nginx/html/a.html" failed (2: No such file or directory), client: 172.17.0.1, server: localhost, request: "GET /a.html HTTP/1.1", host: "172.17.0.2"
+172.17.0.1 - - [04/Jan/2022:11:44:30 +0000] "GET /index.html HTTP/1.1" 200 612 "-" "curl/7.29.0" "-"
+172.17.0.1 - - [04/Jan/2022:11:48:48 +0000] "GET /b.html HTTP/1.1" 404 169 "-" "curl/7.29.0" "-"
+2022/01/04 11:48:48 [error] 7#7: *4 open() "/usr/share/nginx/html/b.html" failed (2: No such file or directory), client: 172.17.0.1, server: localhost, request: "GET /b.html HTTP/1.1", host: "172.17.0.2"
+```
+- Container application 내부에서 실행 중인 Process 출력
+  - ``docker top <container name>``
+```bash
+[gusami@docker-centos ~]$docker top webserver
+UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD
+root                2324                2304                0                   20:28               ?                   00:00:00            nginx: master process nginx -g daemon off;
+101                 2351                2324                0                   20:28               ?                   00:00:00            nginx: worker process
+```  
+- Container에 직접 접속하여 Bash Shell 사용
+  - ``docker exec -it <container name> /bin/bash``
+  - ``-i``: interactive
+  - ``-t``: terminal
+```bash
+[gusami@docker-centos ~]$docker exec -it webserver /bin/bash
+root@c0bf16b4e6eb:/# cd /usr/share/nginx/html
+root@c0bf16b4e6eb:/usr/share/nginx/html# echo "KyuSahm Homepage" > index.html
+root@c0bf16b4e6eb:/usr/share/nginx/html# cat index.html
+KyuSahm Homepage
+root@c0bf16b4e6eb:/usr/share/nginx/html# exit
+exit
+# 바뀐 index.html에 접속
+[gusami@docker-centos ~]$curl 172.17.0.2
+KyuSahm Homepage
+```
+#### Container 종료
+- Container 정지
+  - ``docker stop <container name>``
+```bash
+# container 정지
+[gusami@docker-centos ~]$docker stop webserver
+webserver
+# 생성, 동작 및 중지된 container 목록 확인. STATUS가 "Exited"로 표시
+[gusami@docker-centos ~]$docker ps -a
+CONTAINER ID   IMAGE        COMMAND                  CREATED          STATUS                      PORTS     NAMES
+c0bf16b4e6eb   nginx:1.14   "nginx -g 'daemon of…"   35 minutes ago   Exited (0) 33 seconds ago             webserver
+# container 재시작
+[gusami@docker-centos ~]$docker start webserver
+webserver
+# webpage 재접속
+[gusami@docker-centos ~]$curl 172.17.0.2
+KyuSahm Homepage
+```
+- Container Application 삭제
+  - ``docker rm <container name>``: 실행 중인 container는 삭제 불가!!. Stop 후. 삭제 가능
+  - ``docker rm -f <container name>``: 정지와 삭제를 동시에 함
+```bash
+# container application 삭제 시도
+[gusami@docker-centos ~]$docker rm webserver
+Error response from daemon: You cannot remove a running container c0bf16b4e6eb56c1652b36079381dd3fef01857f3206da78d052ac353cd72efd. Stop the container before attempting removal or force remove
+# -f option을 통한 container application 정지 및 삭제
+[gusami@docker-centos ~]$docker rm -f webserver
+webserver
+# 생성, 동작 및 중지된 container 목록 확인. 삭제 되었기 때문에 없음
+[gusami@docker-centos ~]$docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+### 문제 풀이
+- Q1: Apache Webserver Container 이미지를 검색한 후, 다운로드 하세요.(search, pull)
+```bash
+[gusami@docker-centos ~]$docker search apache
+NAME                               DESCRIPTION                                     STARS     OFFICIAL   AUTOMATED
+httpd                              The Apache HTTP Server Project                  3819      [OK]       
+tomcat                             Apache Tomcat is an open source implementati…   3211      [OK]       
+cassandra                          Apache Cassandra is an open-source distribut…   1342      [OK]       
+maven                              Apache Maven is a software project managemen…   1299      [OK]       
+apache/airflow                     Apache Airflow                                  308                  
+apache/nifi                        Unofficial convenience binaries and Docker i…   233                  [OK]
+...
+[gusami@docker-centos ~]$docker pull httpd:latest
+latest: Pulling from library/httpd
+a2abf6c4d29d: Pull complete 
+dcc4698797c8: Pull complete 
+41c22baa66ec: Pull complete 
+67283bbdd4a0: Pull complete 
+d982c879c57e: Pull complete 
+Digest: sha256:0954cc1af252d824860b2c5dc0a10720af2b7a3d3435581ca788dff8480c7b32
+Status: Downloaded newer image for httpd:latest
+docker.io/library/httpd:latest
+```
+- Q2: 다운로드한 Apache Webserver를 백그라운드 실행(detach)하고, Container 이름을 "web"으로 동작 시키세요.(run)
+```bash
+[gusami@docker-centos ~]$docker run -d -p 80:80 --name web httpd:latest
+5865a42165c567a8aac7fd9657cce10e1067b646e65373285edbf2d2f6fbd6df
+```
+- Q3: 동작 중인 Container 목록을 확인해서 web container가 running중인지 확인하세요(ps)
+```bash
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE          COMMAND              CREATED          STATUS          PORTS                               NAMES
+5865a42165c5   httpd:latest   "httpd-foreground"   46 seconds ago   Up 46 seconds   0.0.0.0:80->80/tcp, :::80->80/tcp   web
+```
+- Q4: 실행 중인 web container의 IP Address를 확인하세요.(inspect)
+```bash
+[gusami@docker-centos ~]$docker inspect --format '{{.NetworkSettings.IPAddress}}' web
+172.17.0.2
+```
+- Q5: curl 명령으로 접속시도해 보세요. 어떤 웹페이지가 표시되나요?
+```bash
+[gusami@docker-centos ~]$curl 172.17.0.2:80
+<html><body><h1>It works!</h1></body></html>
+[gusami@docker-centos ~]$curl 172.17.0.2
+<html><body><h1>It works!</h1></body></html>
+```
+- Q6: web container가 만들어내는 로그를 출력하세요.
+```bash
+[gusami@docker-centos ~]$docker logs web
+AH00558: httpd: Could not reliably determine the server's fully qualified domain name, using 172.17.0.2. Set the 'ServerName' directive globally to suppress this message
+AH00558: httpd: Could not reliably determine the server's fully qualified domain name, using 172.17.0.2. Set the 'ServerName' directive globally to suppress this message
+[Tue Jan 04 12:23:11.546078 2022] [mpm_event:notice] [pid 1:tid 139804910632256] AH00489: Apache/2.4.52 (Unix) configured -- resuming normal operations
+[Tue Jan 04 12:23:11.546202 2022] [core:notice] [pid 1:tid 139804910632256] AH00094: Command line: 'httpd -D FOREGROUND'
+172.17.0.1 - - [04/Jan/2022:12:25:55 +0000] "GET / HTTP/1.1" 200 45
+172.17.0.1 - - [04/Jan/2022:12:25:57 +0000] "GET / HTTP/1.1" 200 45
+```
+- Q7: 실행 중인 모든 Container를 중지하고 삭제하세요.
+```bash
+[gusami@docker-centos ~]$docker rm -f web
+web
+[gusami@docker-centos ~]$docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+- Q8: 다운로드 된 컨테이너 이미지를 삭제하세요.
+```bash
+[gusami@docker-centos ~]$docker images
+REPOSITORY   TAG       IMAGE ID       CREATED       SIZE
+mysql        8         3218b38490ce   2 weeks ago   516MB
+mysql        latest    3218b38490ce   2 weeks ago   516MB
+httpd        latest    dabbfbe0c57b   2 weeks ago   144MB
+nginx        1.14      295c7be07902   2 years ago   109MB
+[gusami@docker-centos ~]$docker rmi mysql mysql:8 httpd nginx:1.14
+[gusami@docker-centos ~]$docker images
+REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
+```
+## Docker Container 리소스 관리
