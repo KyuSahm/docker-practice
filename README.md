@@ -2723,4 +2723,101 @@ nginx        1.14      295c7be07902   2 years ago   109MB
 [gusami@docker-centos ~]$docker images
 REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
 ```
-## Docker Container 리소스 관리
+## Docker Container 리소스 관리 - 이론편
+### Container의 하드웨어 리소스 제한 하기
+![docker_container_resource](./images/docker_container_resource.png)
+- https://docs.docker.com/config/containers/resource_constraints/  
+- 하드웨어 리소스: CPU, Memory, Disk 등
+- 기본적으로 Container는 Host Hardware 리소스의 사용 제한을 받지 않는다.
+- Docker command를 통해 제한할 수 있는 Resource
+  - CPU
+  - Memory
+  - Disk I/O
+  - ``$docker run --help``
+```bash
+[gusami@docker-centos ~]$docker run --help
+
+Usage:  docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+
+Run a command in a new container
+....
+    --blkio-weight uint16            Block IO (relative weight), between 10 and 1000, or 0 to disable (default 0)
+    --blkio-weight-device list       Block IO weight (relative device weight) (default [])
+
+-c, --cpu-shares int                 CPU shares (relative weight)
+    --cpus decimal                   Number of CPUs
+    --cpuset-cpus string             CPUs in which to allow execution (0-3, 0,1)
+    --cpuset-mems string             MEMs in which to allow execution (0-3, 0,1)
+....
+    --device-read-bps list           Limit read rate (bytes per second) from a device (default [])
+    --device-read-iops list          Limit read rate (IO per second) from a device (default [])
+    --device-write-bps list          Limit write rate (bytes per second) to a device (default [])
+    --device-write-iops list         Limit write rate (IO per second) to a device (default [])
+....      
+-m, --memory bytes                   Memory limit
+    --memory-reservation bytes       Memory soft limit
+    --memory-swap bytes              Swap limit equal to memory plus swap: '-1' to enable unlimited swap
+    --memory-swappiness int          Tune container memory swappiness (0 to 100) (default -1)
+.....
+```
+#### Memory Resource 제한
+- 제한 단위는 b(bytes), k(kilo-bytes), m(mega-bytes), g(giga-bytes)로 할당
+- OOM Killer
+  - Linux는 Physical Memory가 부족해지만, OOM Killer을 통해서 Process를 Kill하기 시작함
+- ``--memory-swap`` details from ``docs.docker.com`` : ``--memory-swap`` is a modifier flag that only has meaning if ``--memory`` is also set. Using swap allows the container to write excess memory requirements to disk when the container has exhausted all the RAM that is available to it. There is a performance penalty for applications that swap memory to disk often. If ``--memory-swap`` is set to a positive integer, then both ``--memory`` and ``--memory-swap`` must be set. ``--memory-swap`` represents the total amount of memory and swap that can be used, and ``--memory`` controls the amount used by non-swap memory. So if ``--memory="300m" and --memory-swap="1g"``, the container can use 300m of memory and 700m (1g - 300m) swap.
+
+| 옵션          | Description                                 |
+| ------------- | ------------------------------------------- |
+| --memory, -m  | Container가 사용할 최대 메모리 양을 지정      |
+| --memory-swap | Container가 사용할 Swap 메모리 영역에 대한 설정. 메모리 + Swap. 생략 시 메모리의 2배가 설정 |
+| --memory-reservation | --memory 값보다 적은 값으로 구성하는 소프트 제한 값 설정      |
+| --oom-kill-disable  | OOM(Out of memory) Killer가 프로세스 Kill하지 못하도록 보호   |
+```bash
+# nginx에 512 mega bytes의 최대 메모리 양을 지정
+$docker run -d -m 512m nginx:1.14
+# nginx에 1 giga bytes의 최대 메모리 양을 지정하고, 적어도 500 mega bytes를 사용하도록 보장받음
+$docker run -d -m 1g --memory-reservation 500m nginx:1.14
+# nginx에 200 mega bytes의 최대 메모리 양을 지정하고, swap까지 합치면 300m를 사용 가능
+$docker run -d -m 200m --memory-swap 300m nginx:1.14
+# nginx에 200 mega bytes의 최대 메모리 양을 지정하고, Memory가 부족해도 프로세스가 보호되도록 지정
+$docker run -d -m 200m --oom-kill-disable nginx:1.14
+```
+#### CPU Resource 제한
+| 옵션          | Description                                 |
+| ------------- | ------------------------------------------- |
+| --cpus        | Container에 할당할 CPU Core수를 지정. --cpus="1.5": Container가 최대 1.5개의 CPU 파워 사용 가능 |
+| --cpuset-cpus | Container가 사용할 수 있는 CPU Core를 할당. cpu index는 0부터 시작. --cpuset-cpus 0-4 |
+| --cpu-share   | Container가 사용하는 CPU 비중을 1024 값을 기반으로 설정. --cpu-share 2048: 기본 값보다 두 배 많은 CPU 자원을 할당. 다른 Container들에 대한 상대적인 CPU 비중 정도로 이해 (가중치) |
+```bash
+# ubuntu container application에 0.5개의 CPU를 할당
+$docker run -d --cpus=".5" ubuntu:1.14
+# ubuntu container application에 0, 1, 2, 3번 CPU를 할당
+$docker run -d --cpuset-cpus 0-3 ubuntu:1.14
+# ubuntu container application에 다른 Container보다 2배의 CPU 비중을 할당
+$docker run -d --cpu-share 2048 ubuntu:1.14
+```
+#### Block I/O 제한
+| 옵션           | Description                                 |
+| -------------- | ------------------------------------------- |
+| --blkio-weight, --blkio-weight-device | Block IO의 Quota를 설정. 100 ~ 1000까지 선택. default 500. 다른 Container들에 대한 상대적인 수치 |
+| --device-read-bps, --device-write-bps | 특정 디바이스에 대한 읽기와 쓰기 작업의 초당 제한을 kb, mb, gb 단위로 설정 |
+| --device-read-iops, --device-write-iops  | Container의 read/write 속도의 quota를 설정. 초당 quota를 제한해서 I/O를 발생시킴. 0 이상의 정수로 표기. 초당 데이터 전송량 = IOPS * 블럭크기 (단위 데이터 용량) |
+```bash
+# ubuntu container application에 다른 container보다 1/5배의 Block IO Quota를 설정
+$docker run -it --rm --blkio-weight 100 ubuntu:latest /bin/bash
+# ubuntu container application가 /dev/vda에 write할 때, write-bps를 초당 1mb로 제한
+$docker run -it --rm --device-write-bps /dev/vda:1mb ubuntu:latest /bin/bash
+# ubuntu container application가 /dev/vda에 write할 때, 초당 데이터 전송량을 100 * 블럭크기로 제한
+$docker run -it --rm --device-write-iops /dev/vda:100 ubuntu:latest /bin/bash
+```
+### Container의 하드웨어 리소스 사용 모니터링 하기
+- docker monitoring commands
+  - docker stat: 실행 중인 Container의 Runtime 통계를 확인 (CPU/Memory/IO Usage)
+    - ``docker stats [OPTIONS] [CONTAINER...]``
+  - docker events: Docker Host의 실시간 event 정보를 수집해서 출력
+    - ``docker events -f container=<NAME>``
+    - ``docker image -f container=<NAME>``
+- cAdvisor
+  - Google에서 만듬
+  - https://github.com/google/cadvisor
+## Docker Container 리소스 관리 - 실습편
