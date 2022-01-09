@@ -2763,7 +2763,7 @@ Run a command in a new container
 #### Memory Resource 제한
 - 제한 단위는 b(bytes), k(kilo-bytes), m(mega-bytes), g(giga-bytes)로 할당
 - OOM Killer
-  - Linux는 Physical Memory가 부족해지만, OOM Killer을 통해서 Process를 Kill하기 시작함
+  - Linux는 Physical Memory가 부족해지면, OOM Killer을 통해서 Process를 Kill하기 시작함
 - ``--memory-swap`` details from ``docs.docker.com`` : ``--memory-swap`` is a modifier flag that only has meaning if ``--memory`` is also set. Using swap allows the container to write excess memory requirements to disk when the container has exhausted all the RAM that is available to it. There is a performance penalty for applications that swap memory to disk often. If ``--memory-swap`` is set to a positive integer, then both ``--memory`` and ``--memory-swap`` must be set. ``--memory-swap`` represents the total amount of memory and swap that can be used, and ``--memory`` controls the amount used by non-swap memory. So if ``--memory="300m" and --memory-swap="1g"``, the container can use 300m of memory and 700m (1g - 300m) swap.
 
 | 옵션          | Description                                 |
@@ -2821,3 +2821,449 @@ $docker run -it --rm --device-write-iops /dev/vda:100 ubuntu:latest /bin/bash
   - Google에서 만듬
   - https://github.com/google/cadvisor
 ## Docker Container 리소스 관리 - 실습편
+### Linux 부하 테스트 프로그램: Stress
+- Stress Container 생성
+  - Container Build: 부하 테스트 프로그램 stress를 설치하고, 동작시키는 Container 빌드
+  - CPU 부하 테스트: 2개 cpu core를 100% 사용하도록 부하 발생
+    - ``stress --cpu 2``
+  - Memory 부하 테스트: 프로세스 2개와 사용할 메모리만큼 부하 발생
+    - ``stress --vm 2 --vm-bytes <사용할 크기>``
+```bash
+[gusami@docker-centos ~]$mkdir build
+[gusami@docker-centos ~]$cd build
+# Define Dockerfile
+[gusami@docker-centos build]$vi dockerfile
+FROM debian
+MAINTAINER KyuSahm Kim <gusami32@gmail.com>
+RUN apt-get update; apt-get install stress -y
+CMD ["/bin/sh", "-c", "stress -c 2"]
+# docker container image 생성 for stress
+[gusami@docker-centos build]$docker build -t stress:latest .
+Sending build context to Docker daemon  2.048kB
+Step 1/4 : FROM debian
+latest: Pulling from library/debian
+0e29546d541c: Pull complete 
+Digest: sha256:2906804d2a64e8a13a434a1a127fe3f6a28bf7cf3696be4223b06276f32f1f2d
+Status: Downloaded newer image for debian:latest
+ ---> 6f4986d78878
+Step 2/4 : MAINTAINER KyuSahm Kim <gusami32@gmail.com>
+ ---> Running in c477ecfaa60b
+Removing intermediate container c477ecfaa60b
+ ---> 825687f0bec9
+Step 3/4 : RUN apt-get update; apt-get install stress -y
+ ---> Running in fbc439fe28bd
+Get:1 http://security.debian.org/debian-security bullseye-security InRelease [44.1 kB]
+Get:2 http://security.debian.org/debian-security bullseye-security/main amd64 Packages [102 kB]
+Get:3 http://deb.debian.org/debian bullseye InRelease [116 kB]
+Get:4 http://deb.debian.org/debian bullseye-updates InRelease [39.4 kB]
+Get:5 http://deb.debian.org/debian bullseye/main amd64 Packages [8183 kB]
+Get:6 http://deb.debian.org/debian bullseye-updates/main amd64 Packages [2592 B]
+Fetched 8487 kB in 2s (4244 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following NEW packages will be installed:
+  stress
+0 upgraded, 1 newly installed, 0 to remove and 0 not upgraded.
+Need to get 22.0 kB of archives.
+After this operation, 55.3 kB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian bullseye/main amd64 stress amd64 1.0.4-7 [22.0 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 22.0 kB in 0s (559 kB/s)
+Selecting previously unselected package stress.
+(Reading database ... 6653 files and directories currently installed.)
+Preparing to unpack .../stress_1.0.4-7_amd64.deb ...
+Unpacking stress (1.0.4-7) ...
+Setting up stress (1.0.4-7) ...
+Removing intermediate container fbc439fe28bd
+ ---> 4f527e6840ef
+Step 4/4 : CMD ["/bin/sh", "-c", "stress -c 2"]
+ ---> Running in e0b0c9c9889b
+Removing intermediate container e0b0c9c9889b
+ ---> 39f927b5901e
+Successfully built 39f927b5901e
+Successfully tagged stress:latest
+[gusami@docker-centos build]$docker images
+REPOSITORY   TAG       IMAGE ID       CREATED        SIZE
+stress       latest    39f927b5901e   27 hours ago   143MB
+```
+### Container Resource 제한
+- Container의 실제 리소스의 제한은 linux kernel의 cgroups 기능을 사용함
+- Linux Kernel의 cgroups로 제한 가능한 리소스들
+  - Memory
+  - CPU
+  - I/O
+  - Network
+  - Device Node (/dev/)
+#### Memory Resource 제한
+- swap memory 용량 제한이 실제 메모리 제한과 어떤 관련성이 있는지 확인해 봄
+```bash
+# docker run 명령어 사용법
+[gusami@docker-centos build]$docker run --help
+
+Usage:  docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+
+Run a command in a new container
+
+Options:
+      --add-host list                  Add a custom host-to-IP mapping (host:ip)
+......      
+# stress container의 memory를 100m로 제한. swap space에는 0 byte 할당(사용 안함)
+# Container 시작할 때, "stress --vm 1 --vm-bytes 90m -t 5s" 수행 (stress로 5초동안 90m의 메모리 부하를 발생)
+# (기존의 Dockerfile의 설정(CMD ["/bin/sh", "-c", "stress -c 2"])을 Overwrite)
+[gusami@docker-centos build]$docker run -m 100m --memory-swap 100m stress:latest stress --vm 1 --vm-bytes 90m -t 5s
+stress: info: [1] dispatching hogs: 0 cpu, 0 io, 1 vm, 0 hdd
+stress: info: [1] successful run completed in 5s
+# 동일한 조건에 Container 시작할 때, stress로 5초동안 150m의 메모리 부하를 발생
+# stress 명령을 수행하다가 container application이 죽어버림
+[gusami@docker-centos build]$docker run -m 100m --memory-swap 100m stress:latest stress --vm 1 --vm-bytes 150m -t 5s
+stress: info: [1] dispatching hogs: 0 cpu, 0 io, 1 vm, 0 hdd
+stress: FAIL: [1] (415) <-- worker 8 got signal 9
+stress: WARN: [1] (417) now reaping child worker processes
+stress: FAIL: [1] (421) kill error: No such process
+stress: FAIL: [1] (451) failed run completed in 0s
+# Container 시작할 때, --memory-swap 조건을 생략하면 -m 옵션의 2배의 값이 할당됨. (memory 100m, swap space 100m 할당)
+# 정상 동작함.
+[gusami@docker-centos build]$docker run -m 100m stress:latest stress --vm 1 --vm-bytes 150m -t 5s
+stress: info: [1] dispatching hogs: 0 cpu, 0 io, 1 vm, 0 hdd
+stress: info: [1] successful run completed in 5s
+```
+- Container를 OOM-Killer로부터 보호
+  - OOM-Killer disable 설정
+  - OOM-Killer: Linux는 물리적인 메모리가 부족해지면, 프로세스를 Kill함   
+```bash
+# docker run (pull + create + start) with oom-killer option
+[gusami@docker-centos build]$docker run -d -m 100M --name m4 --oom-kill-disable=true nginx
+Unable to find image 'nginx:latest' locally
+latest: Pulling from library/nginx
+a2abf6c4d29d: Pull complete 
+a9edb18cadd1: Pull complete 
+589b7251471a: Pull complete 
+186b1aaa4aa6: Pull complete 
+b4df32aa5a72: Pull complete 
+a0bcbecc962e: Pull complete 
+Digest: sha256:0d17b565c37bcbd895e9d92315a05c1c3c9a29f762b011a10c54a66cd53c9b31
+Status: Downloaded newer image for nginx:latest
+6e431f918a5186c80861c3e9e8dbd39d05197d3a33ef00bb127643de5aef838d
+# m4 container application 상세 확인
+[gusami@docker-centos build]$docker inspect m4
+[
+    {
+        .....
+        "HostConfig": {
+            ....
+            "Memory": 104857600,
+            ....
+            "MemorySwap": 209715200,
+            "MemorySwappiness": null,
+            "OomKillDisable": true,
+            ....
+        },
+        .....
+    }
+]
+# linux kernel의 cgroups를 통해서 직접 확인 가능
+# 실행 중인 docker container id 확인
+[root@docker-centos ~]#docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS     NAMES
+6e431f918a51   nginx     "/docker-entrypoint.…"   12 minutes ago   Up 12 minutes   80/tcp    m4
+# cgroups 값 확인
+[root@docker-centos ~]#cat /sys/fs/cgroup/memory/docker/6e431f918a5186c80861c3e9e8dbd39d05197d3a33ef00bb127643de5aef838d/memory.oom_control 
+oom_kill_disable 1
+under_oom 0
+```
+#### CPU Resource 제한
+- CPU 개수를 제한하여 Container를 실행한다
+```bash
+# Linux 명령어로 사용 가능한 cpu 정보 확인, 2개 사용 가능
+[gusami@docker-centos build]$lscpu
+Architecture:          x86_64
+CPU op-mode(s):        32-bit, 64-bit
+Byte Order:            Little Endian
+CPU(s):                2
+On-line CPU(s) list:   0,1
+Thread(s) per core:    1
+Core(s) per socket:    2
+Socket(s):             1
+NUMA node(s):          1
+Vendor ID:             AuthenticAMD
+CPU family:            23
+Model:                 104
+Model name:            AMD Ryzen 5 5500U with Radeon Graphics
+Stepping:              1
+CPU MHz:               2096.064
+BogoMIPS:              4192.12
+Hypervisor vendor:     KVM
+Virtualization type:   full
+L1d cache:             32K
+L1i cache:             32K
+L2 cache:              512K
+L3 cache:              8192K
+NUMA node0 CPU(s):     0,1
+Flags:                 fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt rdtscp lm constant_tsc art rep_good nopl nonstop_tsc extd_apicid pni pclmulqdq ssse3 cx16 sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx rdrand hypervisor lahf_lm cmp_legacy cr8_legacy abm sse4a misalignsse 3dnowprefetch retpoline_amd ssbd vmmcall fsgsbase avx2 rdseed clflushopt arat
+# 해당 container에 cpu core 1만 사용하도록 할당.
+# Container 시작할 때, "stress --cpu 1" 수행 (stress 명령어로 cpu 1개를 100% 사용)
+# stress -cpu <코어 개수> 
+[gusami@docker-centos build]$docker run --cpuset-cpus 1 --name c1 -d stress:latest stress --cpu 1
+4efcb1e681e86177abf934025a2fa6eeca5e7bb89ac2a2b348e06ef5c3061269
+# top 명령어로 cpu usage 확인. cpu 1만 100% 사용
+[gusami@docker-centos build]$top
+top - 14:05:17 up  1:52,  2 users,  load average: 1.04, 1.07, 0.94
+Tasks: 129 total,   2 running, 127 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 50.0 us,  0.0 sy,  0.0 ni, 50.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  3880268 total,  2796164 free,   436376 used,   647728 buff/cache
+KiB Swap:  2097148 total,  2096636 free,      512 used.  3197584 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                         
+ 3947 root      20   0    3608    100      0 R 100.0  0.0  31:36.55 stress
+# 해당 container에 cpu core 0만 사용하도록 할당.
+# Container 시작할 때, "stress --cpu 1" 수행 (stress 명령어로 cpu 1개를 100% 사용)
+# stress -cpu <코어 개수> 
+[gusami@docker-centos build]$docker run --cpuset-cpus 0 --name c0 -d stress:latest stress --cpu 1
+4be8a6bea0231ff6d699f95ca0e155dfdd2fd8aaf262e51a1aa585f62bf9a9f1
+# top 명령어로 cpu usage 확인. cpu 0, 1 모두 100% 사용
+[gusami@docker-centos build]$top
+top - 14:10:46 up  1:58,  2 users,  load average: 0.98, 1.06, 0.98
+Tasks: 133 total,   3 running, 130 sleeping,   0 stopped,   0 zombie
+%Cpu(s):100.0 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  3880268 total,  2782732 free,   445344 used,   652192 buff/cache
+KiB Swap:  2097148 total,  2096636 free,      512 used.  3188452 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                         
+ 4446 root      20   0    3608     96      0 R  99.7  0.0   0:20.51 stress                                                                                          
+ 4511 root      20   0    3608     92      0 R  99.7  0.0   0:12.89 stress
+# docker container에 core 0, 1 모두 할당.
+# stress 명령어로 1개의 cpu만 100% 사용  
+[gusami@docker-centos build]$docker run --cpuset-cpus 0-1 --name c12 -d stress:latest stress --cpu 1
+55b5d8c82dec8cfa3c11e49b4b2a187f20a67e97575ad7b40e29af18fdaff7cb
+[gusami@docker-centos build]$ top
+top - 14:17:13 up  2:04,  2 users,  load average: 0.03, 0.63, 0.87
+Tasks: 130 total,   2 running, 128 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 50.1 us,  0.0 sy,  0.0 ni, 49.9 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  3880268 total,  2796612 free,   431780 used,   651876 buff/cache
+KiB Swap:  2097148 total,  2096636 free,      512 used.  3202184 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                         
+ 4684 root      20   0    3608     96      0 R 100.0  0.0   0:08.43 stress
+# docker container application의 stop 및 삭제
+$docker rm -f c0 c1 c12
+```
+- Container별로 CPU 상대적 가중치를 할당하여 실행하도록 구성
+```bash
+# Container 모두 제거후에 아래의 명령어를 수행
+# 기본값을 가진 다른 Container에 비해 2배의 cpu usage를 사용
+[gusami@docker-centos ~]$docker run --cpu-shares 2048 --name cload1 -d stress:latest
+9529928980ee234abbafe10c4f6f300470f7c86d653856dd221de74144e72dc0
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE           COMMAND                  CREATED         STATUS         PORTS     NAMES
+9529928980ee   stress:latest   "/bin/sh -c 'stress …"   2 seconds ago   Up 2 seconds             cload1
+# 명령어 옵션을 따로 주지 않았으므로, Dockerfile의 ``CMD ["/bin/sh", "-c", "stress -c 2"]``에 의해 2개의 CPU의 100% 사용
+[gusami@docker-centos ~]$top
+top - 17:00:52 up 3 min,  1 user,  load average: 0.91, 0.34, 0.13
+Tasks: 132 total,   3 running, 129 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 99.8 us,  0.2 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  3880252 total,  3173812 free,   354612 used,   351828 buff/cache
+KiB Swap:  2097148 total,  2097148 free,        0 used.  3299364 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                         
+ 1916 root      20   0    3608     96      0 R 100.0  0.0   0:28.84 stress                                                                                          
+ 1917 root      20   0    3608     96      0 R  99.7  0.0   0:28.79 stress
+# cpu-share option을 사용하지 않았으므로, 기본값인 "--cpu-shares 1024"와 동일한 효과
+[gusami@docker-centos ~]$docker run --name cload2 -d stress:latest
+a8f15a7103fe4c6415e59442d89f71d6031f4fd73bf5275b29580b3b3401aff0
+# "--cpu-shares 2048"을 할당한 Container보다 CPU Usage가 반을 차지함.
+[gusami@docker-centos ~]$top
+top - 17:09:48 up 12 min,  1 user,  load average: 1.93, 1.44, 0.83
+Tasks: 133 total,   5 running, 128 sleeping,   0 stopped,   0 zombie
+%Cpu(s):100.0 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  3880252 total,  3068632 free,   365732 used,   445888 buff/cache
+KiB Swap:  2097148 total,  2097148 free,        0 used.  3287912 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                         
+ 2144 root      20   0    3608     92      0 R  66.4  0.0   1:13.92 stress                                                                                          
+ 2145 root      20   0    3608     92      0 R  66.1  0.0   1:13.79 stress                                                                                          
+ 2244 root      20   0    3608     96      0 R  33.6  0.0   0:04.47 stress                                                                                          
+ 2243 root      20   0    3608     96      0 R  33.2  0.0   0:04.22 stress
+# 기본값을 가진 다른 Container에 비해 0.5배의 cpu usage를 사용
+[gusami@docker-centos ~]$docker run --cpu-shares 512 --name cload3 -d stress:latest
+cd48b3725b6715324559fe0d4780bbd50701e71ff25fcbec01b5adf89d8bcc1e
+# 기본값을 가진 다른 Container에 비해 0.5배의 cpu usage를 사용하는 것을 확인
+[gusami@docker-centos ~]$top
+top - 17:14:18 up 16 min,  1 user,  load average: 4.29, 3.04, 1.66
+Tasks: 137 total,   7 running, 130 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 99.6 us,  0.2 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.2 si,  0.0 st
+KiB Mem :  3880252 total,  3057552 free,   375920 used,   446780 buff/cache
+KiB Swap:  2097148 total,  2097148 free,        0 used.  3277292 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                         
+ 2144 root      20   0    3608     92      0 R  60.3  0.0   4:12.74 stress                                                                                          
+ 2145 root      20   0    3608     92      0 R  55.7  0.0   4:11.71 stress                                                                                          
+ 2243 root      20   0    3608     96      0 R  28.0  0.0   1:33.80 stress                                                                                          
+ 2244 root      20   0    3608     96      0 R  28.0  0.0   1:33.62 stress                                                                                          
+ 2371 root      20   0    3608     92      0 R  14.3  0.0   0:01.58 stress                                                                                          
+ 2370 root      20   0    3608     92      0 R  13.7  0.0   0:01.57 stress
+ # 기본값을 가진 다른 Container에 비해 0.5배의 cpu usage를 사용
+[gusami@docker-centos ~]$docker run --cpu-shares 512 --name cload4 -d stress:latest
+2a6e35bc5e426675ba2ae50065ec3806ef3de049d3db723da819ba97b0ec9cee
+# 기본값을 가진 다른 Container에 비해 0.5배의 cpu usage를 사용하는 것을 확인
+[gusami@docker-centos ~]$top
+top - 17:17:01 up 19 min,  1 user,  load average: 6.87, 4.56, 2.45
+Tasks: 143 total,   9 running, 134 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 99.8 us,  0.2 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  3880252 total,  3041760 free,   391268 used,   447224 buff/cache
+KiB Swap:  2097148 total,  2097148 free,        0 used.  3261732 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                         
+ 2145 root      20   0    3608     92      0 R  50.2  0.0   5:41.80 stress                                                                                          
+ 2144 root      20   0    3608     92      0 R  49.8  0.0   5:42.90 stress                                                                                          
+ 2243 root      20   0    3608     96      0 R  24.9  0.0   2:18.92 stress                                                                                          
+ 2244 root      20   0    3608     96      0 R  24.9  0.0   2:18.86 stress                                                                                          
+ 2370 root      20   0    3608     92      0 R  12.3  0.0   0:24.03 stress                                                                                          
+ 2371 root      20   0    3608     92      0 R  12.3  0.0   0:24.06 stress                                                                                          
+ 2456 root      20   0    3608     96      0 R  12.3  0.0   0:04.73 stress                                                                                          
+ 2457 root      20   0    3608     96      0 R  12.3  0.0   0:04.73 stress
+# 실행 중인 docker container 확인
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE           COMMAND                  CREATED              STATUS              PORTS     NAMES
+2a6e35bc5e42   stress:latest   "/bin/sh -c 'stress …"   About a minute ago   Up About a minute             cload4
+cd48b3725b67   stress:latest   "/bin/sh -c 'stress …"   4 minutes ago        Up 4 minutes                  cload3
+a8f15a7103fe   stress:latest   "/bin/sh -c 'stress …"   8 minutes ago        Up 8 minutes                  cload2
+9529928980ee   stress:latest   "/bin/sh -c 'stress …"   17 minutes ago       Up 9 minutes                  cload1
+```
+#### Block I/O 제한
+- 현재의 block device들을 열거 
+```bash
+[gusami@docker-centos ~]$ lsblk
+NAME            MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda               8:0    0   20G  0 disk 
+├─sda1            8:1    0    1G  0 part /boot
+└─sda2            8:2    0   19G  0 part 
+  ├─centos-root 253:0    0   17G  0 lvm  /
+  └─centos-swap 253:1    0    2G  0 lvm  [SWAP]
+sr0              11:0    1 1024M  0 rom 
+```
+- Container에서 ``--device-write-iops``를 적용해서 write 속도의 초당 quota를 제한해서 IO write를 발생시킴
+```bash
+[gusami@docker-centos ~]$docker run -it --rm --device-write-iops /dev/sda:10 ubuntu:latest /bin/bash
+# dd command: Copy a file, converting and formatting according to the operands.
+# bs=BYTES        read and write up to BYTES bytes at a time (default: 512);
+#                 overrides ibs and obs
+# count=N         copy only N input blocks
+root@17f3640307fb:/#dd if=/dev/zero of=file1 bs=1M count=10 oflag=direct
+10+0 records in
+10+0 records out
+10485760 bytes (10 MB, 10 MiB) copied, 2.00578 s, 5.2 MB/s
+```
+- 다음 write quota를 100으로 변경한 후, 같은 작업을 반복
+```bash
+[gusami@docker-centos ~]$docker run -it --rm --device-write-iops /dev/sda:100 ubuntu:latest /bin/bash
+# dd command: Copy a file, converting and formatting according to the operands.
+# bs=BYTES        read and write up to BYTES bytes at a time (default: 512);
+#                 overrides ibs and obs
+# count=N         copy only N input blocks
+root@3b502162e970:/#dd if=/dev/zero of=file1 bs=1M count=10 oflag=direct
+10+0 records in
+10+0 records out
+10485760 bytes (10 MB, 10 MiB) copied, 0.127462 s, 82.3 MB/s
+# 메모리와 io를 제한한 새로운 Container application 생성
+[gusami@docker-centos ~]$docker run -d -it --rm --device-write-iops /dev/sda:100 -m 500m --name c1 ubuntu:latest /bin/bash
+d880915503ad177fa2de716fd00d9c6ace892579c304f58362c37a3a0987a63b
+```
+### Container Resource 모니터링하기
+- docker stats 명령어
+  - ``docker stats <container name>``: 특정 Container의 Resource 사용량 확인
+  - ``docker stats``: 전체 Container들의 Resource 사용량 확인
+```bash
+[gusami@docker-centos ~]$docker stats cload1
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT   MEM %     NET I/O     BLOCK I/O   PIDS
+9529928980ee   cload1    108.16%   216KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
+[gusami@docker-centos ~]$docker stats
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT   MEM %     NET I/O     BLOCK I/O   PIDS
+2a6e35bc5e42   cload4    26.04%    228KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
+cd48b3725b67   cload3    28.22%    220KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
+a8f15a7103fe   cload2    54.18%    224KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
+9529928980ee   cload1    112.25%   216KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
+```  
+### cAdvisor 설치해서 사용하기
+- Google의 container resource usage monitoring tool
+  - https://github.com/google/cadvisor
+- Quick Start: Running cAdvisor in a Docker Container
+  - GitHub 페이지에서 아래 내용을 복사해서 cAdvisor container 실행
+```bash
+[root@docker-centos ~]# VERSION=v0.36.0
+[root@docker-centos ~]# docker run \
+    --volume=/:/rootfs:ro \
+    --volume=/var/run:/var/run:ro \
+    --volume=/sys:/sys:ro \
+    --volume=/var/lib/docker/:/var/lib/docker:ro \
+    --volume=/dev/disk/:/dev/disk:ro \
+    --publish=8080:8080 \
+    --detach=true \
+    --name=cadvisor \
+    --privileged \
+    --device=/dev/kmsg \
+    gcr.io/cadvisor/cadvisor:$VERSION
+Unable to find image 'gcr.io/cadvisor/cadvisor:v0.36.0' locally
+v0.36.0: Pulling from cadvisor/cadvisor
+9d48c3bd43c5: Pull complete 
+f7d6cbe0ad90: Pull complete 
+ec9db44a3ab4: Pull complete 
+Digest: sha256:5ee8e2734bb79a0cf8a1f87e10458527105273006b033e617f0ba848088c9cfc
+Status: Downloaded newer image for gcr.io/cadvisor/cadvisor:v0.36.0
+370d492643ef94739010f0d3d8560cd165d1cc0dd729bbc5a782077444bc1494
+```
+- 외부에서 접속하기 위해 VirtualBox에 Port Forwarding을 추가
+
+![cAdvisor_Port_Forwarding](./images/cAdvisor_Port_Forwarding.png)
+- cAdvisor에 접속해서 결과확인
+
+![cAdvisor_Html_1](./images/cAdvisor_Html_1.png)
+![cAdvisor_Html_2](./images/cAdvisor_Html_2.png)
+![cAdvisor_Html_3](./images/cAdvisor_Html_3.png)
+![cAdvisor_Html_4](./images/cAdvisor_Html_4.png)
+![cAdvisor_Html_5](./images/cAdvisor_Html_5.png)
+- Main Page에서 "Docker Containers"를 클릭하면, Container별 상세 페이지로 이동 가능
+- **구글이 만든 쿠버네티스의 Kubelet안에 cAdvisor가 존재**
+### 문제 풀이
+- 문제 1: ``db``라는 이름을 가지는 ``mysql`` Container를 다음의 조건으로 실행하시오
+  - MYSQL_ROOT_PASSWORD: pass
+  - 물리 메모리 200M
+  - Swap 메모리 300M
+  - 할당 CPU Core 수: 1
+```bash
+# docker container application 생성 및 실행
+# 메모리를 크게 잡아줘야 정상적으로 시작함
+[root@docker-centos ~]#docker run -d -m 500m --memory-swap 1000m --cpus=1 --name db -e MYSQL_ROOT_PASSWORD=ehalthf93 -p 3306:3306 mysql:latest
+66bdd5b0b3677fd2beb060f89df420812e75d7cdfe754af416667610b9d05fff
+# 실행 중인 docker container application 정보 확인
+[root@docker-centos ~]#docker ps
+CONTAINER ID   IMAGE                              COMMAND                  CREATED             STATUS                       PORTS                                                  NAMES
+66bdd5b0b367   mysql:latest                       "docker-entrypoint.s…"   4 seconds ago       Up 3 seconds                 0.0.0.0:3306->3306/tcp, :::3306->3306/tcp, 33060/tcp   db
+370d492643ef   gcr.io/cadvisor/cadvisor:v0.36.0   "/usr/bin/cadvisor -…"   About an hour ago   Up About an hour (healthy)   0.0.0.0:8080->8080/tcp, :::8080->8080/tcp              cadvisor
+# 열려있는 port 정보 확인
+[root@docker-centos ~]#netstat -tlnp
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+..... 
+tcp        0      0 0.0.0.0:3306            0.0.0.0:*               LISTEN      9621/docker-proxy   
+.....
+tcp6       0      0 :::3306                 :::*                    LISTEN      9626/docker-proxy  
+```
+![MySQL_Port_Forwarding](./images/MySQL_Port_Forwarding.png)
+- Windows에서 Port Forward된 Port의 Listening 확인
+
+![MySQL_Port_Listening_On_Windows](./images/MySQL_Port_Listening_On_Windows.png)
+- Connect with MySQL Workbench
+
+![MySQL_Connect_From_Window](./images/MySQL_Connect_From_Windows.png)
+- 문제 2: db container 리소스 사용량을 docker stat 명령어로 확인해 보자.
+```bash
+[root@docker-centos ~]# docker stats
+
+CONTAINER ID   NAME       CPU %     MEM USAGE / LIMIT   MEM %     NET I/O          BLOCK I/O       PIDS
+66bdd5b0b367   db         0.59%     439.3MiB / 500MiB   87.86%    43.1kB / 381kB   262kB / 506MB   44
+370d492643ef   cadvisor   21.77%    160.6MiB / 3.7GiB   4.24%     126MB / 6.22GB   172kB / 0B      13
+....
+```
+## Docker Container Storage - 이론편
