@@ -3267,3 +3267,55 @@ CONTAINER ID   NAME       CPU %     MEM USAGE / LIMIT   MEM %     NET I/O       
 ....
 ```
 ## Docker Container Storage - 이론편
+### Container Volume
+- Container Image는 ReadOnly
+  - 수정이 불가능한 상태
+  - 단지 사용만 가능
+- 동작 중인 Container Application들도 ReadOnly  
+  - 하지만, Container에 추가/수정되는 데이터들은 별도의 RW Layer에 저장
+  - ``RO Layer + RW Layer``를 마치 하나인 것처럼 보이는 기술을 ``Union File System`` 또는 ``Overlay``라고 함
+
+![Docker_Union_File_System](./images/Docker_Union_File_System.png)
+- 예를 들어, MySQL Container가 실행된다면?
+  - MySQL은 ``RO Layer``을 기반으로 실행
+  - 생성되는 수많은 DB 데이터들은 ``RW Layer``에 저장됨
+    - Container의 ``/var/lib/mysql``
+- 실수로 Docker Container를 삭제한다면?
+  - ``docker rm <Container name>``: ``RO Layer + RW Layer`` 모두 사라짐
+  - 사용했던 수많은 DB 데이터들도 ``RW Layer``와 함께 사라짐
+  - 영구적으로 보존할 방법이 있나? 있다.
+### 데이터를 보존하는 방법
+- Container가 만들어주는 데이터를 영구적으로 보존하는 방법
+  - Docker Host에 특정한 저장 공간을 생성한 후, Container Application의 데이터를 디스크에 저장하면 됨
+  - 아래의 명령어를 이용해서 Host 디렉토리를 Container로 volume mount
+    - ``docker run -v <host directory>:<container directory>``
+  - Container가 삭제되어도 Host의 디스크의 데이터는 영구적으로 보존됨
+  - 새로운 Container를 생성할 때, 해당 디렉토리를 container로 volume mount하면 됨
+
+![Docker_Data_Preserve](./images/Docker_Data_Preserve.png)
+```bash
+$docker run -d --name db -v /dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=pass mysql:latest
+```
+- volume option 사용 방법
+  - ``-v <host path>:<container mount path>``
+  - ``-v <host path>:<container mount path>:<read write mode>``
+  - ``-v <container mount path>``
+```bash
+# DB data를 mount된 Host volume에 저장
+$docker run -d -v /dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=pass mysql:latest
+# mount된 volume을 읽기 전용으로 사용
+$docker run -d -v /webdata:/var/www/html:ro httpd:latest
+# host path를 명시하지 않으면, 자동으로 Host 디렉토리 생성
+# /var/lib/docker/volumes/<사용자의 uuid 디렉토리>/data 디렉토리 아래에 생성
+$docker run -d -v /var/lib/mysql -e MYSQL_ROOT_PASSWORD=pass mysql:latest
+```
+### Container사이 데이터를 공유하는 방법
+- 동일한 Host의 디렉토리를 여러 개의 Container가 volume mount하는 방식으로 사용 가능
+  - 사용하는 쪽에서 읽기 전용 속성을 사용하면 좋음
+- 예시
+```bash
+$docker run -v /webdata:/webdata -d --name df gusami32/df:latest
+$docker run -v /webdata:/usr/share/nginx/html:ro -d nginx:latest
+```
+![Docker_Data_Share](./images/Docker_Data_Share.png)
+## Docker Container Storage - 실습편
