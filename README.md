@@ -3319,3 +3319,357 @@ $docker run -v /webdata:/usr/share/nginx/html:ro -d nginx:latest
 ```
 ![Docker_Data_Share](./images/Docker_Data_Share.png)
 ## Docker Container Storage - 실습편
+### MySQL DB data 영구 보존하기
+![MySQL_Data_Preserve](./images/MySQL_Data_Preserve.png)
+```bash
+# DB data를 mount된 Host volume에 저장
+# docker run 명령어를 실행할 때, 존재하지 않는 host directory를 명시하면 자동 생성
+# -v <host directory>:<container directory>
+gusami@docker-ubuntu:~$docker run -d --name db -v /dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=ehalthf93 mysql:latest
+Unable to find image 'mysql:latest' locally
+latest: Pulling from library/mysql
+72a69066d2fe: Pull complete 
+93619dbc5b36: Pull complete 
+99da31dd6142: Pull complete 
+626033c43d70: Pull complete 
+37d5d7efb64e: Pull complete 
+ac563158d721: Pull complete 
+d2ba16033dad: Pull complete 
+688ba7d5c01a: Pull complete 
+00e060b6d11d: Pull complete 
+1c04857f594f: Pull complete 
+4d7cfa90e6ea: Pull complete 
+e0431212d27d: Pull complete 
+Digest: sha256:e9027fe4d91c0153429607251656806cc784e914937271037f7738bd5b8e7709
+Status: Downloaded newer image for mysql:latest
+8e4309b7590592cec6ab8dd9af43bb8b3085cfc42c8c4b021b7df7eac2c6ea6b
+# db container로 진입
+gusami@docker-ubuntu:~$docker exec -it db /bin/bash
+# mysql cli 실행
+root@8e4309b75905:/#mysql -u root -pehalthf93 
+mysql: [Warning] Using a password on the command line interface can be insecure.
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 10
+Server version: 8.0.27 MySQL Community Server - GPL
+
+Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+# list databases
+mysql> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+4 rows in set (0.00 sec)
+# create database "ttabae"
+mysql> create database ttabae;
+Query OK, 1 row affected (0.01 sec)
+# list databases
+mysql> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
+| ttabae             |
++--------------------+
+5 rows in set (0.01 sec)
+# exit
+mysql> exit
+Bye
+# change directory into database files directory
+root@8e4309b75905:/# cd /var/lib/mysql
+# list database files
+root@8e4309b75905:/var/lib/mysql# ls -al
+total 198072
+-rw-r----- 1 mysql mysql   196608 Jan 12 12:55 '#ib_16384_0.dblwr'
+-rw-r----- 1 mysql mysql  8585216 Jan 12 12:49 '#ib_16384_1.dblwr'
+drwxr-x--- 2 mysql mysql     4096 Jan 12 12:49 '#innodb_temp'
+drwxr-xr-x 7 mysql root      4096 Jan 12 12:55  .
+drwxr-xr-x 1 root  root      4096 Dec 21 02:56  ..
+-rw-r----- 1 mysql mysql       56 Jan 12 12:49  auto.cnf
+-rw-r----- 1 mysql mysql  3116921 Jan 12 12:49  binlog.000001
+-rw-r----- 1 mysql mysql      347 Jan 12 12:55  binlog.000002
+-rw-r----- 1 mysql mysql       32 Jan 12 12:49  binlog.index
+-rw------- 1 mysql mysql     1680 Jan 12 12:49  ca-key.pem
+-rw-r--r-- 1 mysql mysql     1112 Jan 12 12:49  ca.pem
+-rw-r--r-- 1 mysql mysql     1112 Jan 12 12:49  client-cert.pem
+-rw------- 1 mysql mysql     1676 Jan 12 12:49  client-key.pem
+-rw-r----- 1 mysql mysql     5687 Jan 12 12:49  ib_buffer_pool
+-rw-r----- 1 mysql mysql 50331648 Jan 12 12:55  ib_logfile0
+-rw-r----- 1 mysql mysql 50331648 Jan 12 12:49  ib_logfile1
+-rw-r----- 1 mysql mysql 12582912 Jan 12 12:55  ibdata1
+-rw-r----- 1 mysql mysql 12582912 Jan 12 12:49  ibtmp1
+drwxr-x--- 2 mysql mysql     4096 Jan 12 12:49  mysql
+-rw-r----- 1 mysql mysql 31457280 Jan 12 12:55  mysql.ibd
+drwxr-x--- 2 mysql mysql     4096 Jan 12 12:49  performance_schema
+-rw------- 1 mysql mysql     1680 Jan 12 12:49  private_key.pem
+-rw-r--r-- 1 mysql mysql      452 Jan 12 12:49  public_key.pem
+-rw-r--r-- 1 mysql mysql     1112 Jan 12 12:49  server-cert.pem
+-rw------- 1 mysql mysql     1680 Jan 12 12:49  server-key.pem
+drwxr-x--- 2 mysql mysql     4096 Jan 12 12:49  sys
+drwxr-x--- 2 mysql mysql     4096 Jan 12 12:55  ttabae
+-rw-r----- 1 mysql mysql 16777216 Jan 12 12:55  undo_001
+-rw-r----- 1 mysql mysql 16777216 Jan 12 12:51  undo_002
+# exit from container
+root@8e4309b75905:/var/lib/mysql# exit
+exit
+# change directory into host mounted directory
+gusami@docker-ubuntu:~$ cd /dbdata
+# list files in host mounted directory
+gusami@docker-ubuntu:/dbdata$ ls -al
+합계 198072
+-rw-r-----  1 systemd-coredump systemd-coredump   196608  1월 12 21:55 '#ib_16384_0.dblwr'
+-rw-r-----  1 systemd-coredump systemd-coredump  8585216  1월 12 21:49 '#ib_16384_1.dblwr'
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49 '#innodb_temp'
+drwxr-xr-x  7 systemd-coredump root                 4096  1월 12 21:55  .
+drwxr-xr-x 21 root             root                 4096  1월 12 21:48  ..
+-rw-r-----  1 systemd-coredump systemd-coredump       56  1월 12 21:49  auto.cnf
+-rw-r-----  1 systemd-coredump systemd-coredump  3116921  1월 12 21:49  binlog.000001
+-rw-r-----  1 systemd-coredump systemd-coredump      347  1월 12 21:55  binlog.000002
+-rw-r-----  1 systemd-coredump systemd-coredump       32  1월 12 21:49  binlog.index
+-rw-------  1 systemd-coredump systemd-coredump     1680  1월 12 21:49  ca-key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112  1월 12 21:49  ca.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112  1월 12 21:49  client-cert.pem
+-rw-------  1 systemd-coredump systemd-coredump     1676  1월 12 21:49  client-key.pem
+-rw-r-----  1 systemd-coredump systemd-coredump     5687  1월 12 21:49  ib_buffer_pool
+-rw-r-----  1 systemd-coredump systemd-coredump 50331648  1월 12 21:55  ib_logfile0
+-rw-r-----  1 systemd-coredump systemd-coredump 50331648  1월 12 21:49  ib_logfile1
+-rw-r-----  1 systemd-coredump systemd-coredump 12582912  1월 12 21:55  ibdata1
+-rw-r-----  1 systemd-coredump systemd-coredump 12582912  1월 12 21:49  ibtmp1
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49  mysql
+-rw-r-----  1 systemd-coredump systemd-coredump 31457280  1월 12 21:55  mysql.ibd
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49  performance_schema
+-rw-------  1 systemd-coredump systemd-coredump     1680  1월 12 21:49  private_key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump      452  1월 12 21:49  public_key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112  1월 12 21:49  server-cert.pem
+-rw-------  1 systemd-coredump systemd-coredump     1680  1월 12 21:49  server-key.pem
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49  sys
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:55  ttabae
+-rw-r-----  1 systemd-coredump systemd-coredump 16777216  1월 12 21:55  undo_001
+-rw-r-----  1 systemd-coredump systemd-coredump 16777216  1월 12 21:51  undo_002
+# list executing container
+gusami@docker-ubuntu:/dbdata$docker ps
+CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS          PORTS                                       NAMES
+8e4309b75905   mysql:latest   "docker-entrypoint.s…"   11 minutes ago   Up 11 minutes   3306/tcp, 33060/tcp                         db
+# remove db container forcely
+gusami@docker-ubuntu:/dbdata$docker rm -f db
+db
+gusami@docker-ubuntu:/dbdata$docker ps
+CONTAINER ID   IMAGE        COMMAND                  CREATED       STATUS          PORTS                                       NAMES
+# check if db files exist in host mounted directory
+# => Yes
+gusami@docker-ubuntu:/dbdata$ls -al
+합계 198072
+-rw-r-----  1 systemd-coredump systemd-coredump   196608  1월 12 21:55 '#ib_16384_0.dblwr'
+-rw-r-----  1 systemd-coredump systemd-coredump  8585216  1월 12 21:49 '#ib_16384_1.dblwr'
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49 '#innodb_temp'
+drwxr-xr-x  7 systemd-coredump root                 4096  1월 12 21:55  .
+drwxr-xr-x 21 root             root                 4096  1월 12 21:48  ..
+-rw-r-----  1 systemd-coredump systemd-coredump       56  1월 12 21:49  auto.cnf
+-rw-r-----  1 systemd-coredump systemd-coredump  3116921  1월 12 21:49  binlog.000001
+-rw-r-----  1 systemd-coredump systemd-coredump      347  1월 12 21:55  binlog.000002
+-rw-r-----  1 systemd-coredump systemd-coredump       32  1월 12 21:49  binlog.index
+-rw-------  1 systemd-coredump systemd-coredump     1680  1월 12 21:49  ca-key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112  1월 12 21:49  ca.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112  1월 12 21:49  client-cert.pem
+-rw-------  1 systemd-coredump systemd-coredump     1676  1월 12 21:49  client-key.pem
+-rw-r-----  1 systemd-coredump systemd-coredump     5687  1월 12 21:49  ib_buffer_pool
+-rw-r-----  1 systemd-coredump systemd-coredump 50331648  1월 12 21:55  ib_logfile0
+-rw-r-----  1 systemd-coredump systemd-coredump 50331648  1월 12 21:49  ib_logfile1
+-rw-r-----  1 systemd-coredump systemd-coredump 12582912  1월 12 21:55  ibdata1
+-rw-r-----  1 systemd-coredump systemd-coredump 12582912  1월 12 21:49  ibtmp1
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49  mysql
+-rw-r-----  1 systemd-coredump systemd-coredump 31457280  1월 12 21:55  mysql.ibd
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49  performance_schema
+-rw-------  1 systemd-coredump systemd-coredump     1680  1월 12 21:49  private_key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump      452  1월 12 21:49  public_key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112  1월 12 21:49  server-cert.pem
+-rw-------  1 systemd-coredump systemd-coredump     1680  1월 12 21:49  server-key.pem
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:49  sys
+drwxr-x---  2 systemd-coredump systemd-coredump     4096  1월 12 21:55  ttabae
+-rw-r-----  1 systemd-coredump systemd-coredump 16777216  1월 12 21:55  undo_001
+-rw-r-----  1 systemd-coredump systemd-coredump 16777216  1월 12 21:51  undo_002
+# create and start db container again
+gusami@docker-ubuntu:/dbdata$docker run -d --name db -v /dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=ehalthf93 mysql:latest
+0ebdc89a48fee0d68226fb691fef4de6572ba82fdba2bca777bd84597704d4af
+# db container로 진입
+gusami@docker-ubuntu:~$docker exec -it db /bin/bash
+# mysql cli 실행
+root@0ebdc89a48fe:/# mysql -u root -pehalthf93
+mysql: [Warning] Using a password on the command line interface can be insecure.
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 9
+Server version: 8.0.27 MySQL Community Server - GPL
+
+Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+# check if old databas exist in new container application
+mysql> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
+| ttabae             |
++--------------------+
+5 rows in set (0.01 sec)
+
+# host path를 명시하지 않으면, 자동으로 Host 디렉토리 생성
+# /var/lib/docker/volumes/<사용자의 uuid 디렉토리>/data 디렉토리 아래에 생성
+gusami@docker-ubuntu:/dbdata$docker run -d --name db -v /var/lib/mysql -e MYSQL_ROOT_PASSWORD=ehalthf93 mysql:latest
+a0e1453405e70e9c73fe86118b2a6346f34eb078849ccc59d2c0683b2202af68
+# list container application
+gusami@docker-ubuntu:/dbdata$docker ps
+CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS          PORTS                                       NAMES
+a0e1453405e7   mysql:latest   "docker-entrypoint.s…"   3 seconds ago   Up 2 seconds    3306/tcp, 33060/tcp                         db
+# db container 상세 조사 (Mount, IP, Network 정보 확인)
+# host directory: /var/lib/docker/volumes/f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a/_data
+gusami@docker-ubuntu:/dbdata$docker inspect db
+[
+    {
+        "Id": "a0e1453405e70e9c73fe86118b2a6346f34eb078849ccc59d2c0683b2202af68",
+        ......
+        "HostsPath": "/var/lib/docker/containers/a0e1453405e70e9c73fe86118b2a6346f34eb078849ccc59d2c0683b2202af68/hosts",
+        "LogPath": "/var/lib/docker/containers/a0e1453405e70e9c73fe86118b2a6346f34eb078849ccc59d2c0683b2202af68/a0e1453405e70e9c73fe86118b2a6346f34eb078849ccc59d2c0683b2202af68-json.log",
+        "Name": "/db",
+        ....
+        "Mounts": [
+            {
+                "Type": "volume",
+                ....
+                "Source": "/var/lib/docker/volumes/f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a/_data",
+                "Destination": "/var/lib/mysql",                
+                "Driver": "local",
+                "Mode": "",
+                "RW": true,
+                .....
+            }
+        ],
+        "Config": {
+            .....
+            "Env": [
+                "MYSQL_ROOT_PASSWORD=ehalthf93",
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "GOSU_VERSION=1.12",
+                "MYSQL_MAJOR=8.0",
+                "MYSQL_VERSION=8.0.27-1debian10"
+            ],
+            .....
+            "Image": "mysql:latest",
+            "Volumes": {
+                "/var/lib/mysql": {}
+            },
+            "WorkingDir": "",
+            "Entrypoint": [
+                "docker-entrypoint.sh"
+            ],
+            ....
+        },
+        "NetworkSettings": {
+            ............
+            "Ports": {
+                "3306/tcp": null,
+                "33060/tcp": null
+            },
+            ....
+            "IPAddress": "172.17.0.3",
+            "IPPrefixLen": 16,
+            "IPv6Gateway": "",
+            "MacAddress": "02:42:ac:11:00:03",
+            "Networks": {
+                "bridge": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "NetworkID": "cb8a4f40a0f225179257fe6cdf51c5480c3f95ca8c85bdf27a4864e47c1c3da2",
+                    "EndpointID": "3e1ceb037046d6eb522df8e5e3cda892599668b0b3b48675a6dba3e2b25ff188",
+                    "Gateway": "172.17.0.1",
+                    "IPAddress": "172.17.0.3",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:ac:11:00:03",
+                    "DriverOpts": null
+                }
+            }
+        }
+    }
+]
+gusami@docker-ubuntu:/dbdata$su -
+암호: 
+root@docker-ubuntu:~#cd /var/lib/docker/volumes/f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a/_data
+root@docker-ubuntu:/var/lib/docker/volumes/f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a/_data#ls
+'#ib_16384_0.dblwr'   binlog.000001   ca.pem            ib_logfile0   mysql                public_key.pem    undo_001
+'#ib_16384_1.dblwr'   binlog.000002   client-cert.pem   ib_logfile1   mysql.ibd            server-cert.pem   undo_002
+'#innodb_temp'        binlog.index    client-key.pem    ibdata1       performance_schema   server-key.pem
+ auto.cnf             ca-key.pem      ib_buffer_pool    ibtmp1        private_key.pem      sys
+# docker container application 삭제 
+root@docker-ubuntu:~#docker rm -f db
+db
+root@docker-ubuntu:~#docker ps
+CONTAINER ID   IMAGE        COMMAND                  CREATED       STATUS          PORTS                                       NAMES
+77d5a666867c   registry:2   "/entrypoint.sh /etc…"   10 days ago   Up 40 minutes   0.0.0.0:5000->5000/tcp, :::5000->5000/tcp   registry
+# 자동으로 mount된 host directory 디렉토리와 파일은 그대로 존재
+root@docker-ubuntu:~/var/lib/docker/volumes/f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a/_data# ls
+'#ib_16384_0.dblwr'   binlog.000001   ca.pem            ib_logfile0   mysql                public_key.pem    undo_001
+'#ib_16384_1.dblwr'   binlog.000002   client-cert.pem   ib_logfile1   mysql.ibd            server-cert.pem   undo_002
+'#innodb_temp'        binlog.index    client-key.pem    ibdata1       performance_schema   server-key.pem
+ auto.cnf             ca-key.pem      ib_buffer_pool    ibtmp1        private_key.pem      sys
+# list mounted host directory
+root@docker-ubuntu:~# docker volume ls
+DRIVER    VOLUME NAME
+local     53e07ad5ca384aac45f4b420ab55c29ead990bb49b45b2a1ff4f7edda7d9c7a1
+local     e00384aa13115fab2545de0a4d3da644da4a75e3ac922b2dff4064e2846e0112
+local     f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a
+# remove specific volume
+root@docker-ubuntu:~# docker volume rm f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a
+f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a
+# check if the volume is removed
+root@docker-ubuntu:~# cd /var/lib/docker/volumes/f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a/_data
+-bash: cd: /var/lib/docker/volumes/f3f18c229e2d3d6895d5cae9a191896830675baab89b811961e32044fe387a2a/_data: 그런 파일이나 디렉터리가 없습니다
+```
+- 자동으로 mount된 host directory를 지우는 방법
+  - ``docker volume [command]"
+  - ``docker volume ls"를 이용해서 mount되었던 volume 확인 
+  - ``docker volume rm <volume name>"를 이용해서 mount되었던 특정 volume 삭제
+### Web Data를 ReadOnly 서비스로 지원하기
+![Web_Data_Preserve](./images/Web_Data_Preserve.png)
+```bash
+# create host directory and html file
+root@docker-ubuntu:~# mkdir /webdata
+root@docker-ubuntu:~# cd /webdata
+root@docker-ubuntu:/webdata# echo "<h1>Welcome KyuSham World</h1>" > index.html
+# container application에서 수정 못하도록 readonly option으로 mount
+root@docker-ubuntu:/# docker run -d --name webserver -v /webdata:/usr/share/nginx/html:ro -p 80:80 nginx:latest
+3ae614d5ea02adaa63868b50793edf21e9cf013bb29a35d6835059569867ca74
+root@docker-ubuntu:/# curl localhost:80
+<h1>Welcome KyuSham World</h1>
+# mount된 host의 파일을 수정하면, container에서 보여주는 파일이 바로 변경됨
+root@docker-ubuntu:/# cd webdata/
+root@docker-ubuntu:/webdata# echo "<h2>Good Bye</h2>" >> index.html
+root@docker-ubuntu:/webdata# curl localhost:80
+<h1>Welcome KyuSham World</h1>
+<h2>Good Bye</h2>
+```
+### Container Data 공유하기
+21:50
