@@ -3744,7 +3744,7 @@ gusami@docker-ubuntu:~/lab8$curl localhost:80
 Filesystem      Size  Used Avail Use% Mounted on
 overlay          20G   12G  6.9G  62% /
 ```
-## Container간 통신 (Network) - 이론편
+## Container 통신 (Network) - 이론편
 ### Container가 통신하는 방법
 - Docker Host 시스템: 가상 Bridge Network 시스템
 
@@ -3892,3 +3892,433 @@ $docker run -d --name mysql -v /dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=wor
 # WORDPRESS_DB_PASSWORD는 wordpress container가 mysql에 접속하기 위한 database password로 사용
 $docker run -d --name wordpress --link mysql:mysql -e WORDPRESS_DB_PASSWORD=wordpress -p 80:80 wordpress:4
 ```
+## Container 통신 (Network) - 실습편
+### Container Network 사용하기
+- ``docker0`` bridge network
+  - 외부 Network과 내부의 Network (docker container들)간의 연결 역할
+```bash
+# network 정보 확인
+# docker0 gateway and bridge network 확인
+# ip addr => Shows addresses assigned to all network interfaces.
+[gusami@docker-centos ~]$ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: enp0s3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 08:00:27:15:70:71 brd ff:ff:ff:ff:ff:ff
+    inet 10.100.0.106/24 brd 10.100.0.255 scope global noprefixroute enp0s3
+       valid_lft forever preferred_lft forever
+    inet6 fe80::139d:a032:e603:c398/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether 02:42:ca:2a:50:6f brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+# bridge network 확인
+# brctl - ethernet bridge administration
+[gusami@docker-centos ~]$brctl show
+bridge name	bridge id		STP enabled	interfaces
+docker0		8000.0242ca2a506f	no
+# busybox container 다운로드, 생성 및 시작, 그리고, container 내부 진입(-it option)
+[gusami@docker-centos ~]$docker run -it --name c1 busybox
+Unable to find image 'busybox:latest' locally
+latest: Pulling from library/busybox
+5cc84ad355aa: Pull complete 
+Digest: sha256:5acba83a746c7608ed544dc1533b87c737a0b0fb730301639a0179f9344b1678
+Status: Downloaded newer image for busybox:latest
+# container 내부에서 ip address 확인
+# ip addr: 172.17.0.2
+/ # ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+4: eth0@if5: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue 
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+# 동일한 busybox container 생성 및 시작, 그리고, container 내부 진입(-it option)       
+[gusami@docker-centos ~]$ docker run -it --name c2 busybox
+# container 내부에서 ip address 확인
+# ip addr: 172.17.0.3
+# ip가 순차적으로 따지는 것을 확인할 수 있음 
+/ # ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+10: eth0@if11: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue 
+    link/ether 02:42:ac:11:00:03 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.3/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+# nginx container를 detached 형태로 실행
+[gusami@docker-centos ~]$docker run -d -p 80:80 --name web1 nginx
+1c20ee45515be5006795394f3f3d533d44ed46511e23f156b7d2bb234f84c7b9
+# nginx container가 172.17.0.4를 할당 받을 것이므로, curl 명령어로 확인
+[gusami@docker-centos ~]$curl 172.17.0.4
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+# c1 container에 진입
+[gusami@docker-centos ~]$docker exec -it c1 /bin/sh
+# 인터넷 상에 존재하는 google dns server에 접속
+# 경로: 172.17.0.2 -> 172.17.0.1 (gateway) -> 10.100.0.106 (ubuntu)
+#      -> virtual box -> window os node
+/ # ping -c 3 8.8.8.8
+PING 8.8.8.8 (8.8.8.8): 56 data bytes
+64 bytes from 8.8.8.8: seq=0 ttl=113 time=61.836 ms
+64 bytes from 8.8.8.8: seq=1 ttl=113 time=61.250 ms
+64 bytes from 8.8.8.8: seq=2 ttl=113 time=61.116 ms
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 61.116/61.400/61.836 ms
+# c1 container 상세 확인
+[gusami@docker-centos ~]$ docker inspect c1
+[
+    {
+        .....
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "853459a64be1b78c0cf38ecb7393df46d1b24006fa836d4fd9703a726f20947c",
+            .....
+            "EndpointID": "05685c8c43b34190f52f4218189acbe4205c64c35885629bf7d90819e0312ef5",
+            "Gateway": "172.17.0.1",
+            .....
+            "IPAddress": "172.17.0.2",
+            .....
+            "MacAddress": "02:42:ac:11:00:02",
+            .....
+        }
+    }
+]
+# docker0(172.17.0.1) gateway는 NAT service를 제공 (외부로 10.100.0.106 ip로 내보냄)
+# MASQUERADE(가장, 위장) 정보를 확인 => 172.17.0.0/16에서 anywhere로 가는 packet들은 
+#                                      host ip로 바꿔서 송신하겠다는 의미
+[root@docker-centos ~]# iptables -t nat -L -v
+Chain PREROUTING (policy ACCEPT 4 packets, 285 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+   12   840 PREROUTING_direct  all  --  any    any     anywhere             anywhere            
+   12   840 PREROUTING_ZONES_SOURCE  all  --  any    any     anywhere             anywhere            
+   12   840 PREROUTING_ZONES  all  --  any    any     anywhere             anywhere            
+    2    88 DOCKER     all  --  any    any     anywhere             anywhere             ADDRTYPE match dst-type LOCAL
+
+Chain INPUT (policy ACCEPT 1 packets, 44 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+
+Chain OUTPUT (policy ACCEPT 2 packets, 129 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+   60  4435 OUTPUT_direct  all  --  any    any     anywhere             anywhere            
+    0     0 DOCKER     all  --  any    any     anywhere            !loopback/8           ADDRTYPE match dst-type LOCAL
+
+Chain POSTROUTING (policy ACCEPT 2 packets, 129 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+    2   168 MASQUERADE  all  --  any    !docker0  172.17.0.0/16        anywhere            
+   60  4435 POSTROUTING_direct  all  --  any    any     anywhere             anywhere            
+   60  4435 POSTROUTING_ZONES_SOURCE  all  --  any    any     anywhere             anywhere            
+   60  4435 POSTROUTING_ZONES  all  --  any    any     anywhere             anywhere            
+    0     0 MASQUERADE  tcp  --  any    any     172.17.0.4           172.17.0.4           tcp dpt:http
+
+Chain DOCKER (2 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 RETURN     all  --  docker0 any     anywhere             anywhere            
+    0     0 DNAT       tcp  --  !docker0 any     anywhere             anywhere             tcp dpt:http to:172.17.0.4:80
+# crm alias 추가 => 모든 docker container 삭제    
+[gusami@docker-centos ~]$ cat .bashrc
+# .bashrc
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+	. /etc/bashrc
+fi
+
+# Uncomment the following line if you don't like systemctl's auto-paging feature:
+# export SYSTEMD_PAGER=
+
+# User specific aliases and functions
+alias crm='docker rm -f $(docker ps -aq)'
+# docker container 전부 삭제
+[gusami@docker-centos ~]$ crm
+1c20ee45515b
+a8035c7557b5
+06cb3f6006c7
+66bdd5b0b367
+370d492643ef
+```
+### Container Port 외부로 노출 하기
+```bash
+# host의 80 port를 container의 80 port로 맵핑
+[gusami@docker-centos ~]$docker run -p 80:80 -d --name web1 nginx
+6617ae9047bed307479e2db31995eec392385bf1991bfb31c84cc8cc566dc0d9
+# PORTS 항목을 확인하면, 0.0.0.0:80(localhost)이 container의 80으로 맵핑됨을 확인 가능
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS                               NAMES
+6617ae9047be   nginx     "/docker-entrypoint.…"   18 seconds ago   Up 17 seconds   0.0.0.0:80->80/tcp, :::80->80/tcp   web1
+# localhost 80 port에 접속
+[gusami@docker-centos ~]$ curl localhost:80
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+# network 정보 확인
+# -t: tcp, -u: udp, -l:listening, -n: display numeric format, -p: PID/Program
+[gusami@docker-centos ~]$netstat -tulnp
+(No info could be read for "-p": geteuid()=1000 but you should be root.)
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+tcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN      -                   
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      -                   
+tcp6       0      0 :::80                   :::*                    LISTEN      -                   
+tcp6       0      0 :::22                   :::*                    LISTEN      -                   
+# web2 container 생성 및 시작
+# container port만 80으로 명시. host의 port는 random port가 할당
+[gusami@docker-centos ~]$docker run -p 80 -d --name web2 nginx
+9df62fdd174270ea2777dd23ae6a78f469c057448cfca0fb536483494ae00346
+# PORTS 항목을 확인하면, 0.0.0.0:49153(localhost)이 web2 container의 80으로 맵핑됨
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS                                     NAMES
+9df62fdd1742   nginx     "/docker-entrypoint.…"   10 seconds ago   Up 9 seconds    0.0.0.0:49153->80/tcp, :::49153->80/tcp   web2
+6617ae9047be   nginx     "/docker-entrypoint.…"   14 minutes ago   Up 14 minutes   0.0.0.0:80->80/tcp, :::80->80/tcp         web1
+# web2 container에 접속
+[gusami@docker-centos ~]$curl localhost:49153
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+- ``hub.docker.com``에 접속하여 nginx를 검색해서 Dockerfile을 확인
+  - ``EXPOSE 80``가 존재: 80 port를 외부로 노출함을 확인
+  - ``-P``옵션을 주면, EXPOSE된 포트의 개수 만큼 Random port를 생성하여 맵핑함
+```bash
+# -P옵션을 사용하여 맵핑
+[gusami@docker-centos ~]$docker run -P -d --name web3 nginx
+748450ff372790938d2e4979ff178db50e83c4709524f5ad8d5366a8c8e89c69
+# container확인. host의 49154 port가 맵핑 됨을 확인
+[gusami@docker-centos ~]$docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS                                     NAMES
+748450ff3727   nginx     "/docker-entrypoint.…"   3 seconds ago    Up 2 seconds    0.0.0.0:49154->80/tcp, :::49154->80/tcp   web3
+9df62fdd1742   nginx     "/docker-entrypoint.…"   24 minutes ago   Up 24 minutes   0.0.0.0:49153->80/tcp, :::49153->80/tcp   web2
+6617ae9047be   nginx     "/docker-entrypoint.…"   39 minutes ago   Up 39 minutes   0.0.0.0:80->80/tcp, :::80->80/tcp         web1
+```  
+### User defined network 구성
+```bash
+# docker network 명령어 확인
+gusami@docker-ubuntu:~$docker network --help
+
+Usage:  docker network COMMAND
+
+Manage networks
+
+Commands:
+  connect     Connect a container to a network
+  create      Create a network
+  disconnect  Disconnect a container from a network
+  inspect     Display detailed information on one or more networks
+  ls          List networks
+  prune       Remove all unused networks
+  rm          Remove one or more networks
+
+Run 'docker network COMMAND --help' for more information on a command
+# docker network list
+# docker0 bridge network 확인
+gusami@docker-ubuntu:~$docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+2bfd0d4b0fe4   bridge    bridge    local
+12f544fe8872   host      host      local
+f669ebf66c23   none      null      local
+# docker host내에 user defined 네트워크 생성
+# --driver을 생략하면, 기본값이 bridge임
+# --subnet을 생략하면, 172.18.0.0/24로 하나씩 증가 (17 -> 18)
+# --gateway를 생략하면, 기본값이 XXX.XXX.XXX.1이 할당
+# 네트워크 이름을 "mynet"이라고 할당
+gusami@docker-ubuntu:~$docker network create --driver bridge --subnet 192.168.100.0/24 --gateway 192.168.100.254 mynet
+8c77177f93c42a90d73c4ca0ef4a97cd03dbf72d203e10aef3b004bd4163d946
+# 생성한 network 확인 (mynet)
+gusami@docker-ubuntu:~$docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+2bfd0d4b0fe4   bridge    bridge    local
+12f544fe8872   host      host      local
+8c77177f93c4   mynet     bridge    local
+f669ebf66c23   none      null      local
+# mynet network 상세 정보 확인
+gusami@docker-ubuntu:~$ docker inspect mynet
+[
+    {
+        "Name": "mynet",
+        "Id": "8c77177f93c42a90d73c4ca0ef4a97cd03dbf72d203e10aef3b004bd4163d946",
+        "Created": "2022-01-15T22:13:17.93173564+09:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "192.168.100.0/24",
+                    "Gateway": "192.168.100.254"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {},
+        "Labels": {}
+    }
+]
+# busybox container 생성 및 실행 그리고, 내부에 접속
+# --net 옵션을 통해 mynet에 생성
+gusami@docker-ubuntu:~$docker run -it --name c1 --net mynet busybox
+# ip addr을 통해 ip 정보 확인
+/ # ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+9: eth0@if10: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue 
+    link/ether 02:42:c0:a8:64:01 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.100.1/24 brd 192.168.100.255 scope global eth0
+       valid_lft forever preferred_lft forever
+# busybox container 생성 및 실행 그리고, 내부에 접속
+# --net 옵션을 통해 mynet에 생성
+# --ip 옵션을 통해 static ip 사용       
+gusami@docker-ubuntu:~$docker run -it --name c1 --net mynet --ip 192.168.100.100 busybox
+# ip addr을 통해 ip 정보 확인
+/ # ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+11: eth0@if12: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue 
+    link/ether 02:42:c0:a8:64:64 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.100.100/24 brd 192.168.100.255 scope global eth0
+       valid_lft forever preferred_lft forever
+```
+### Container간 통신
+- wordpress, mysql container service 구축하기
+```bash
+# pull, create and start mysql container 
+gusami@docker-ubuntu:~$ docker run -d --name mysql -v /dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=ehalthf93 mysql:latest
+8eecc125cd2d034ea224049fb812d66fc5f579cc19e68f97e5b3adc89cb2a649
+# database file 확인
+gusami@docker-ubuntu:~$ ls /dbdata
+'#ib_16384_0.dblwr'   binlog.000001   ca-key.pem        ib_buffer_pool   ibtmp1               private_key.pem   sys
+'#ib_16384_1.dblwr'   binlog.000002   ca.pem            ib_logfile0      mysql                public_key.pem    undo_001
+'#innodb_temp'        binlog.000003   client-cert.pem   ib_logfile1      mysql.ibd            server-cert.pem   undo_002
+ auto.cnf             binlog.index    client-key.pem    ibdata1          performance_schema   server-key.pem
+# pull, create and start wordpress container 
+# --link option: mysql container에 연결 (alias를 wordpressdb라 명시)
+# WORDPRESS_DB_PASSWORD: wordpress container가 mysql container에 연결할 때 사용 할 암호
+gusami@docker-ubuntu:~$docker run -d --name wordpress --link mysql:wordpressdb -p 80:80 wordpress:latest
+15f083389389bd42136c6baaae98d683801a3bfe2c4e8116dea25a31adfab697
+# 실행 중인 container를 확인
+# 80 port가 wordpress를 위해 열려 있음을 확인
+gusami@docker-ubuntu:~$docker ps
+CONTAINER ID   IMAGE              COMMAND                  CREATED          STATUS          PORTS                                       NAMES
+15f083389389   wordpress:latest   "docker-entrypoint.s…"   4 seconds ago    Up 4 seconds    0.0.0.0:80->80/tcp, :::80->80/tcp           wordpress
+8eecc125cd2d   mysql:latest       "docker-entrypoint.s…"   21 seconds ago   Up 21 seconds   3306/tcp, 33060/tcp                         mysql
+77d5a666867c   registry:2         "/entrypoint.sh /etc…"   13 days ago      Up 2 hours      0.0.0.0:5000->5000/tcp, :::5000->5000/tcp   registry
+# host의 80 port 확인
+gusami@docker-ubuntu:~$netstat -tulnp | grep 80
+(Not all processes could be identified, non-owned process info
+ will not be shown, you would have to be root to see it all.)
+tcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN      -                   
+tcp6       0      0 :::80                   :::*                    LISTEN      -
+```
+- Virtual Box에 Port forwarding 추가
+
+![wordpress_port_forwarding](./images/wordpress_port_forwarding.png)
+- 접속
+
+![wordpress_connect](./images/wordpress_connect.png)
+### 문제 풀이
+![Container_Data_Share_Problem](./images/Container_Data_Share_Problem.png)
+- 문제 1: 다음의 container를 빌드하시오
+```bash
+$cat genid.sh
+#!/bin/bash
+mkdir -p /webdata
+while true
+do
+  /usr/bin/rig | /usr/bin/boxes -d boy > /webdata/index.html
+  sleep 5
+done
+$cat Dockerfile
+FROM ubuntu:18.04
+RUN apt-get update; apt-get -y install rig boxes
+ADD genid.sh /bin/genid.sh
+RUN chmod +x /bin/genid.sh
+ENTRYPOINT ["/bin/genid.sh"]
+$docker build -t genid .
+```
+- 문제 2: 빌드 한 container를 이용해서 multi-tier container를 구축하시오
+- genid에서 생성한 index.html은 volume을 통해 nginx의 웹 컨텐츠로 공유되어야 합니다
+- nginx web server는 80 port를 통해 genid가 생성한 html 문서를 고객에게 서비스 합니다
+- 결과: genid는 웹 문서를 생성하고, nginx는 고객에게 서비스하는 형식으로 운영됩니다
