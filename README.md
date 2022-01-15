@@ -3672,4 +3672,75 @@ root@docker-ubuntu:/webdata# curl localhost:80
 <h2>Good Bye</h2>
 ```
 ### Container Data 공유하기
-21:50
+![Container_Data_Sharing](./images/Container_Data_Sharing.png)
+- df 명령어: Mount된 파일 시스템 별로 disk 사용량을 모니터링 할 때 사용
+  - ``-h``: print sizes in human readable format (e.g., 1K 234M 2G)
+```bash
+gusami@docker-ubuntu:~$ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda5        20G   12G  7.1G  62% /
+```
+#### 주기적으로 파일 시스템을 모니터링하는 Container 만들기
+- 주기적으로 모니터링하는 Shell 파일 생성
+```bash
+gusami@docker-ubuntu:~/lab8$cat df.sh
+#!/bin/bash
+mkdir -p /webdata
+while true
+do
+  df -h / > /webdata/index.html
+  sleep 10
+done
+```
+- Dockerfile 생성
+```bash
+# dockerfile
+gusami@docker-ubuntu:~/lab8$cat dockerfile 
+FROM ubuntu:18.04
+ADD df.sh /bin/df.sh
+RUN chmod +x /bin/df.sh
+ENTRYPOINT ["/bin/df.sh"]
+# docker container image 생성
+gusami@docker-ubuntu:~/lab8$docker build -t gusami32/df:latest .
+Sending build context to Docker daemon  3.072kB
+Step 1/4 : FROM ubuntu:18.04
+ ---> 5a214d77f5d7
+Step 2/4 : ADD df.sh /bin/df.sh
+ ---> a3f24e86e2e4
+Step 3/4 : RUN chmod +x /bin/df.sh
+ ---> Running in aca0ab739d69
+Removing intermediate container aca0ab739d69
+ ---> da3a1c7c539b
+Step 4/4 : ENTRYPOINT ["/bin/df.sh"]
+ ---> Running in 18ca9f1fdcb7
+Removing intermediate container 18ca9f1fdcb7
+ ---> 7365c1950770
+Successfully built 7365c1950770
+Successfully tagged gusami32/df:latest
+# list docker images
+gusami@docker-ubuntu:~/lab8$docker images
+REPOSITORY                                  TAG       IMAGE ID       CREATED          SIZE
+gusami32/df                                 latest    7365c1950770   46 seconds ago   63.1MB
+```
+#### 데이터 공유하기
+![Web_Data_Sharing](./images/Web_Data_Sharing.png)
+- container내에서 ``df`` 명령어로 디스크 사용량을 모니터링
+- host disk의 특정 위치를 두 개의 container가 공유
+```bash
+# container application 생성
+# host의 /webdata 디렉토리를 container의 /webdata로 마운트시킴
+gusami@docker-ubuntu:~/lab8$docker run -d -v /webdata:/webdata --name dfMonitor gusami32/df:latest 
+9727b84878186e1be95bbebdef2a2bbca2e52fc095bd31b6ee2deb6b10beef95
+# host directory를 통해 모니터링 결과 확인
+gusami@docker-ubuntu:~/lab8$ cat /webdata/index.html
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          20G   12G  7.1G  62% /
+```
+- nginx container를 통해서 모니터링 결과를 제공
+```bash
+gusami@docker-ubuntu:~/lab8$docker run -d --name web -v /webdata:/usr/share/nginx/html:ro -p 80:80 nginx:latest
+fa6cd5b10853944d59d0282e1fb140aa7b4967c3029e5a4bdfcd68f764e0662e
+gusami@docker-ubuntu:~/lab8$curl localhost:80
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          20G   12G  6.9G  62% /
+```
