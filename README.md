@@ -3744,3 +3744,151 @@ gusami@docker-ubuntu:~/lab8$curl localhost:80
 Filesystem      Size  Used Avail Use% Mounted on
 overlay          20G   12G  6.9G  62% /
 ```
+## Container간 통신 (Network) - 이론편
+### Container가 통신하는 방법
+- Docker Host 시스템: 가상 Bridge Network 시스템
+
+![Docker_Host_System](./images/Docker_Host_System.png)
+- Container Network Model
+  - vitrual ethernet bridge: 172.17.0.0/16
+  - L2 통신 기반
+  - container 생성 시 veth 인터페이스 생성(sandbox)
+  - 모든 Container는 외부 통신을 ``docker0`` 통해 진행
+  - container running 시, 172.17.XXX.XXX로 IP 주소를 할당
+- ``docker0``가 Docker Host System에 존재
+  - 실제 Host system의 Network와 docke container간의 연결 고리(Gateway) 역할
+    - ``172.17.0.1``
+  - **Nat Network Service(Address Translation)와 Port forwarding**를 지원
+    - ip tables를 통해서 지원
+```bash
+gusami@docker-ubuntu:~/lab8$ ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+# host system       
+2: enp0s3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 08:00:27:ea:40:0f brd ff:ff:ff:ff:ff:ff
+    inet 10.100.0.105/24 brd 10.100.0.255 scope global noprefixroute enp0s3
+       valid_lft forever preferred_lft forever
+    inet6 fe80::4b11:b4d4:a9a5:4af1/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+# docker0       
+3: docker0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:24:11:06:e4 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::42:24ff:fe11:6e4/64 scope link 
+       valid_lft forever preferred_lft forever
+```  
+### Container Port를 외부로 노출하는 방법
+- port-forwarding
+  - container port를 외부로 노출시켜 외부 연결 허용
+  - 아래의 명령어를 수행하면, host의 iptables rule 생성을 통한 Port 노출
+    - ``-p hostPort:containerPort``
+    - ``-p containerPort``: host의 random port에 맵핑
+    - ``-P``: dockerfile의 ``expose``로 노출된 port를 host의 random port에 맵핑
+  - host의 port가 겹치면 안됨
+
+![Docker_IpTables](./images/Docker_IpTables.png)    
+```bash
+# iptables 명령어를 통해 방화벽 Rule 확인
+gusami@docker-ubuntu:~/lab8$ sudo iptables -t nat -L -n -v
+[sudo] gusami의 암호: 
+Chain PREROUTING (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+    1    44 DOCKER     all  --  *      *       0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+
+Chain OUTPUT (policy ACCEPT 256 packets, 21510 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 DOCKER     all  --  *      *       0.0.0.0/0           !127.0.0.0/8          ADDRTYPE match dst-type LOCAL
+
+Chain POSTROUTING (policy ACCEPT 256 packets, 21510 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 MASQUERADE  all  --  *      !docker0  172.17.0.0/16        0.0.0.0/0           
+    0     0 MASQUERADE  tcp  --  *      *       172.17.0.2           172.17.0.2           tcp dpt:5000
+    0     0 MASQUERADE  tcp  --  *      *       172.17.0.4           172.17.0.4           tcp dpt:80
+
+Chain DOCKER (2 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 RETURN     all  --  docker0 *       0.0.0.0/0            0.0.0.0/0           
+    0     0 DNAT       tcp  --  !docker0 *       0.0.0.0/0            0.0.0.0/0            tcp dpt:5000 to:172.17.0.2:5000
+    0     0 DNAT       tcp  --  !docker0 *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80 to:172.17.0.4:80
+# 새로운 nginx with (8080:80) port mapping    
+gusami@docker-ubuntu:~/lab8$docker run -d --name test -v /webdata:/usr/share/nginx/html:ro -p 8080:80 nginx:latest
+ab8643c35f0f21a8eab97ece17ecca000587e81c654399346afa1f5b68ad0684
+# iptables 확인
+gusami@docker-ubuntu:~/lab8$sudo iptables -t nat -L -n -v
+Chain PREROUTING (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+    1    44 DOCKER     all  --  *      *       0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+
+Chain OUTPUT (policy ACCEPT 5 packets, 365 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 DOCKER     all  --  *      *       0.0.0.0/0           !127.0.0.0/8          ADDRTYPE match dst-type LOCAL
+
+Chain POSTROUTING (policy ACCEPT 5 packets, 365 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 MASQUERADE  all  --  *      !docker0  172.17.0.0/16        0.0.0.0/0           
+    0     0 MASQUERADE  tcp  --  *      *       172.17.0.2           172.17.0.2           tcp dpt:5000
+    0     0 MASQUERADE  tcp  --  *      *       172.17.0.4           172.17.0.4           tcp dpt:80
+    0     0 MASQUERADE  tcp  --  *      *       172.17.0.6           172.17.0.6           tcp dpt:80
+
+Chain DOCKER (2 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 RETURN     all  --  docker0 *       0.0.0.0/0            0.0.0.0/0           
+    0     0 DNAT       tcp  --  !docker0 *       0.0.0.0/0            0.0.0.0/0            tcp dpt:5000 to:172.17.0.2:5000
+    0     0 DNAT       tcp  --  !docker0 *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80 to:172.17.0.4:80
+    0     0 DNAT       tcp  --  !docker0 *       0.0.0.0/0            0.0.0.0/0            tcp dpt:8080 to:172.17.0.6:80
+# connect physical node    
+gusami@docker-ubuntu:~/lab8$ curl localhost:8080
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          20G   12G  6.9G  62% /    
+```        
+### Container Network 추가 방법
+![User_Defined_Network](./images/User_Defined_Network.png)
+- 기본적으로 ``docker0`` 네트워크 안에 있는 container는 static ip를 할당하지 못함
+- User Defined Network 종류 (default: bridge)
+  - bridge: 하나의 Host내에서 여러 컨테이너들이 소통할 수 있게 해줌
+  - host: Container를 Host와 동일한 네트워크에서 동작시킴
+  - overlay: 여러 Host들에서 분산되어 돌아가는 Container들 간에 네트워킹을 위해서 사용
+- User Defined bridge network 생성
+  - static ip 할당 가능
+```bash
+# docker host내에 user defined 네트워크 생성
+# --driver을 생략하면, 기본값이 bridge임
+# --subnet을 생략하면, 172.18.0.0/24로 하나씩 증가 (17 -> 18)
+# --gateway를 생략하면, 기본값이 XXX.XXX.XXX.1이 할당
+# 네트워크 이름을 "mynet"이라고 할당
+$docker network create --driver bridge --subnet 192.168.100.0/24 --gateway 192.168.100.254 mynet
+$docker network ls
+# --net을 주지않으면, 기본적으로 docker0 네트워크를 사용
+$docker run -d --name web -p 80:80 nginx:1.14
+$curl localhost
+# 네트워크를 지정해서 docker container application 실행
+# --net를 통해 네트워크 지정
+# --ip를 통해 container ip를 지정. 지정하지 않으면, 순차적으로 생성됨.
+$docker run -d --name appjs --net mynet --ip 192.168.100.100 -p 8080:8080 gusami32/appjs
+$curl localhost:8080
+```
+### Container끼리 통신하는 방법
+![Comm_Between_Containers](./images/Comm_Between_Containers.png)
+- wordpress container내부에는 apache web server가 내장되어 있음
+- wordpress container내부에서 생성되는 데이터를 네트워크를 통해 mysql container에 저장하도록 구성
+```bash
+# host의 /dbdata 디렉토리를 공유한 mysql container application을 생성 및 동작
+# mysql root 및 사용자 password를 지정
+$docker run -d --name mysql -v /dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=wordpress -e MYSQL_PASSWORD=wordpress mysql:5.7
+# --link 명령어를 통해 두 개의 container를 연결
+# --link <target container name>:<nickname>
+# WORDPRESS_DB_PASSWORD는 wordpress container가 mysql에 접속하기 위한 database password로 사용
+$docker run -d --name wordpress --link mysql:mysql -e WORDPRESS_DB_PASSWORD=wordpress -p 80:80 wordpress:4
+```
