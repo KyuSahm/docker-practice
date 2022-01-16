@@ -925,9 +925,10 @@ $docker build -t imagename:tag
   - ``CMD`` 또는 ``ENTRYPOINT`` 중 하나를 주로 사용
   - ``CMD``의 경우, Container를 Running할 때, 사용자에 의해 다른 명령으로 치환 가능
   - ``ENTRYPOINT``의 경우, Container를 Running할 때, 사용자에 의해 다른 명령으로 치환 불가능 (차단)
-  - ``ENTRYPOINT``와 ``CMD``를 동시에 사용한 경우
+  - ``ENTRYPOINT``와 ``CMD``를 동시에 사용한 경우  
     - ``ENTRYPOINT``는 반드시 바이너리 명령어를 명시
     - ``CMD``는 argument 또는 Option을 명시
+    - 관련 링크: https://bluese05.tistory.com/77
 #### Dockerfile 예제 보기
 - 소스코드(hello.js) 작성
 - Layer 1: ``node:12``을 base image를 이용해서 환경 구성
@@ -4322,3 +4323,263 @@ $docker build -t genid .
 - genid에서 생성한 index.html은 volume을 통해 nginx의 웹 컨텐츠로 공유되어야 합니다
 - nginx web server는 80 port를 통해 genid가 생성한 html 문서를 고객에게 서비스 합니다
 - 결과: genid는 웹 문서를 생성하고, nginx는 고객에게 서비스하는 형식으로 운영됩니다
+## docker-compose (빌드에서 운영까지) - 이론편
+### docker-compose란?
+![docker_compose](./images/docker_compose.png)
+- 여러 container를 일괄적으로 정의하고, 실행할 수 있는 Tool
+  - 하나의 서비스를 운영하기 위해서는 여러 개의 Application이 동작해야 함
+  - Container화 된 Application들을 통합 관리할 수 있음
+  - 여러 container들에 대한 세부적인 동작 방법을 명시할 수 있음
+- Yaml 파일 형태로 정의
+  - Docker는 Yaml파일의 내용을 해석해서 개별적인 Docker 명령어를 생성(``docker run``)
+- ``docker-compose ps``
+  - docker compose로 실행된 container 목록을 알 수 있음
+### docker-compose로 Container 실행하는 방법
+- docker-compose.yml 정의
+
+| 옵션    | Description                                                     |
+| --------| --------------------------------------------------------------- |
+| version| compose vesion. version에 따라 지원 문법이 다름 |
+| services| compose를 이용해서 실행할 Container들의 option을 정의 |
+| build| container build |
+| image| compose를 통해 실행할 이미지를 지정 |
+| command| container에서 실행될 명령어 지정 |
+| ports| container가 공개하는 Port를 나열 |
+| link| 다른 container와 연계할 때 연계할 Container를 지정 |
+| expose| link로 연계된 Container에게만 공개할 Port 지정 |
+| volumes| container에 Volume를 Mount |
+| environment| container에 적용할 환경 변수를 정의 |
+| restart| container가 종료될 때 적용 할 restart 정책 |
+| depends_on| container 간의 종속성을 정의. 정의한 container가 먼저 동작되어야 함 |
+- version
+  - version 3: https://docs.docker.com/compose/compose-file/compose-file-v3/
+  - version 2: https://docs.docker.com/compose/compose-file/compose-file-v2/
+```Yaml
+version: "2"
+```
+- services
+```Yaml
+service:
+  webserver:  
+    image: nginx
+  db:
+    image: redis  
+```
+- build
+```Yaml
+webapp:
+  build: .
+```
+- image
+```Yaml
+webapp:
+  image: centos:7
+```
+- command
+```Yaml
+app:
+  image: node:12-alpine
+  command: sh -c "yarn install && yarn run dev"
+```
+- ports
+```Yaml
+webapp:
+  image: httpd:latest
+  ports:
+    - 80
+    - 8443:443
+```
+- link
+```Yaml
+webserver:
+  image: wordpress:latest
+  link:
+    - db:mysql
+```
+- volumes
+```Yaml
+webapp:
+  image: httpd
+  volumes:
+    - /var/www/html
+```
+- environment
+```Yaml
+database:
+  image: mysql:5.7
+  environment:
+    MYSQL_ROOT_PASSWORD: pass
+```
+- restart
+  - no: 재시작 되지 않음
+  - always: container를 수동으로 끄기 전까지 항상 재시작
+  - on-failure: 오류가 있을 시에 재시작  
+```Yaml
+database:
+  image: mysql:5.7
+  restart: always
+```
+- depends_on
+```Yaml
+services:
+  web:
+    image: wordpress:latest
+    depends_on:
+      - db
+  db:
+    image: mysql
+```
+- WordPress와 관련된 docker compose 예제
+  - 관련 링크: https://docs.docker.com/samples/wordpress/
+```Yaml
+version: "3.9"
+    
+services:
+  db: # ``docker run``의 ``--name``옵션에 해당
+    image: mysql:5.7 # ``docker run``의 image 정보에 해당
+    volumes:
+      - db_data:/var/lib/mysql # ``docker run``의 ``-v``옵션에 해당
+    restart: always  # ``docker run``의 ``--restart``옵션에 해당
+    environment:
+      MYSQL_ROOT_PASSWORD: somewordpress # ``docker run``의 ``-e``옵션에 해당
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:latest
+    volumes:
+      - wordpress_data:/var/www/html
+    ports:
+      - "8000:80"
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+volumes:
+  db_data: {}
+  wordpress_data: {}
+```
+#### 실행 예시: docker-compose로 동작시키는 웹서버 
+- 1단계: Service Directory 생성
+```bash
+$mkdir webserver
+$cd webserver
+```
+- 2단계: docker-compose.yml 생성
+```bash
+$cat > docker-compose.yml
+version: '3'
+services:
+  web:
+    image: httpd:latest
+    ports:
+      - "80:80"
+    links:
+      - mysql:db
+    command: apachectl -DFOREGROUND
+  mysql:
+    image: mysql:latest
+    command: mysqlld      
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+```
+- 3단계: docker-compose 명령어 수행
+```bash
+# docker-compose.yml을 실행. -d: detached. daemon 모드로 실행
+# docker-compose.yml이 있는 webserver 디렉토리에서 실행
+$docker-compose up -d
+# 현재 webserver 디렉토리에서 docker-compose로 실행된 container들만의 상태 정보 출력
+$docker-compose ps
+# mysql container의 개수를 2개로 늘림. scale out 가능함.
+$docker-compose scale mysql=2
+$docker-compose ps
+# 현재 webserver 디렉토리에서 docker-compose로 실행된 docker container를 모두 stop 시킴.
+# ("docker stop" 명령어에 대응)
+$docker-compose stop
+# 현재 webserver 디렉토리에서 docker-compose로 실행된 docker container를 모두 삭제시킴. 
+# ("docker rm -f" 명령어에 대응)
+$docker-compose down
+```
+### docker-compose 명령어
+- 관련 링크: https://docs.docker.com/engine/reference/commandline/compose/
+- ``docker-compose <command>``
+
+| option  | Description                                                     |
+| --------| --------------------------------------------------------------- |
+| up| container 생성 및 시작 |
+| ps| container 목록 표시 |
+| logs| container 로그 출력 |
+| run| 실행 중인 container에 명령어 실행 |
+| start| container 시작 |
+| stop| container 정지 |
+| restart| container 재시작 |
+| pause| container 일시 정지 |
+| unpause| container 재개 |
+| port| 공개 포트 번호 표시 |
+| config| 구성 확인 |
+| kill | 실행 중인 container 강제 중지 |
+| rm | Removes stopped service containers |
+| down | Stop and remove containers, networks |
+```bash
+# docker-compose.yml의 문법 체크
+$docker-compose config
+$docker-compose up
+$docker-compose up -d
+# 현재 디렉토리가 아닌 다른 디렉토리의 docker-compose.yml를 생성 및 시작
+$docker-compose -f /other-dir/docker-compose.yml
+
+$docker-compose ps
+$docker-compose scale <service-name>=<number>
+# 특정 service(container)에 명령어를 전달하고 싶은 경우
+$docker-compose run <service-name> <command>
+# 특정 service(container)의 로그 확인
+$docker-compose logs <service-name>
+
+$docker-compose stop
+$docker-compose start
+$docker-compose down
+```
+### 빌드에서 운영까지 하는 방법
+#### 방문 횟수를 Count하는 python container 빌드와 운영
+- 1단계: Service Directory 생성
+```bash
+$mkdir composetest
+$cd composetest
+```
+- 2단계: 빌드를 위한 dockerfile 생성
+```bash
+$cat > Dockerfile
+FROM python:3.7-alpine
+WORKDIR /code
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+RUN apk add --no-cache gcc musl-dev linux-headers
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+EXPOSE 5000
+COPY
+CMD ["flask", "run"]
+```
+- 3단계: docker-compose.yml 생성
+  - ``build: .``: 현재 디렉토리의 ``Dockerfile``을 사용해서 docker container image build 요청
+```bash
+$cat > docker-compose.yml
+version: "3"
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+  redis:
+    image: "redis:alpine"
+```
+- 4단계: docker-compose 명령어 수행
+```bash
+$docker-compose up -d
+```
+## docker-compose (빌드에서 운영까지) - 실습편
