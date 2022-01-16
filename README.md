@@ -913,6 +913,7 @@ $docker build -t imagename:tag
   - ``url``을 이용해서 다운로드 받아서 복사
 - ``WORKDIR``: 컨테이너 빌드시 명령이 실행될 작업 디렉토리 설정
   - 현재 작업 디렉토리를 지정
+  - 예를 들어, Dockerfile에서 COPY 명령의 target 경로를 지정하지 않은 경우, WORKDIR로 복사
 - ``ENV``: 환경변수 지정 (컨테이너가 실행시 남아있음)
 - ``USER``: 명령 및 컨테이너 실행시 적용할 유저 설정 (보안과 연관)
   - ``root``가 아닌 다른 사용자를 빌드 또는 실행 시 사용
@@ -4583,3 +4584,527 @@ services:
 $docker-compose up -d
 ```
 ## docker-compose (빌드에서 운영까지) - 실습편
+### docker-compose 설치
+- 관련링크: https://docs.docker.com/compose/install/
+- Prerequisite on Linux System
+  - Docker Engine이 먼저 설치되어 있어야 함
+  - non-root user로 docker-composer를 사용하기 위해서는 non-root user로 docker를 이미 사용하고 있어야 함
+- 설치 순서  
+  - Step 01. Download the current stable release of Docker Compose
+  - Step 02. Apply executable permissions to the binary
+```bash
+# curl을 이용해서 실행 파일을 다운로드
+gusami@docker-ubuntu:~$sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   664  100   664    0     0  15809      0 --:--:-- --:--:-- --:--:-- 15809
+100 12.1M  100 12.1M    0     0  12.8M      0 --:--:-- --:--:-- --:--:-- 44.1M
+# 실행 권한을 모든 사용자에게 줌
+gusami@docker-ubuntu:~$sudo chmod +x /usr/local/bin/docker-compose
+# check if docker-compose is installed correctly
+gusami@docker-ubuntu:~$docker-compose version
+docker-compose version 1.29.2, build 5becea4c
+docker-py version: 5.0.0
+CPython version: 3.7.10
+OpenSSL version: OpenSSL 1.1.0l  10 Sep 2019
+```
+### container 빌드에서 운영까지
+- ``Get started with Docker Compose`` 내용을 실습
+  - 링크: https://docs.docker.com/compose/gettingstarted/
+
+![docker_build_operate](./images/docker_build_operate.png)
+- 1단계. 서비스 디렉토리 생성
+- 2단계. 빌드를 위한 dockerfile 생성
+- 3단계. docker-compose.yml 생성
+- 4단계. docker-compose 명령어를 이용한 운영
+- Dockerfile에 대한 간단한 설명
+  - 기본 이미지: ``python:3.7-alpine`` 사용
+  - ``WORKDIR /code``: 작업디렉토리를 설정. COPY 명령등에서 기본 디렉토리로 사용
+  - Flask를 이용한 web service를 제공
+  - ``COPY . .``: dockerfile이 있는 현재 디렉토리의 내용을 WORKDIR로 전부 복사
+  - ``requirements.txt``: 의존성이 있는 파이썬 라이브러리 목록을 가짐 (flask, redis 등)
+  - ``RUN pip install -r requirements.txt``: 의존성이 있는 파이썬 라이브러리 목록을 설치
+#### 상세 절차
+##### Step 1: Setup (서비스 디렉토리 생성 및 소스 파일 작성)
+- Create a directory for the project
+```bash
+gusami@docker-ubuntu:~$mkdir composetest
+gusami@docker-ubuntu:~$cd composetest
+```
+- Create a file called ``app.py`` in your project directory
+```bash
+gusami@docker-ubuntu:~/composetest$cat > app.py
+import time
+
+import redis
+from flask import Flask
+
+app = Flask(__name__)
+cache = redis.Redis(host='redis', port=6379)
+
+def get_hit_count():
+    retries = 5
+    while True:
+        try:
+            return cache.incr('hits')
+        except redis.exceptions.ConnectionError as exc:
+            if retries == 0:
+                raise exc
+            retries -= 1
+            time.sleep(0.5)
+
+@app.route('/')
+def hello():
+    count = get_hit_count()
+    return 'Hello World! I have been seen {} times.\n'.format(count)
+```
+- Create another file called requirements.txt in your project directory
+```bash
+gusami@docker-ubuntu:~/composetest$cat > requirements.txt
+flask
+redis
+```
+##### Step 2: Dockerfile 생성
+- Dockerfile 상세 Reference
+  - 링크: https://docs.docker.com/engine/reference/builder/
+- ``WORKDIR``: The WORKDIR instruction sets the working directory for any ``RUN, CMD, ENTRYPOINT, COPY and ADD instructions`` that follow it in the Dockerfile. If the WORKDIR doesn’t exist, it will be created even if it’s not used in any subsequent Dockerfile instruction  
+- ``Dockerfile`` 생성
+```bash
+gusami@docker-ubuntu:~/composetest$cat >  Dockerfile
+# syntax=docker/dockerfile:1
+FROM python:3.7-alpine
+WORKDIR /code
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+RUN apk add --no-cache gcc musl-dev linux-headers
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+EXPOSE 5000
+COPY . .
+CMD ["flask", "run"]
+```
+- Dockerfile 상세 분석
+  - Build an image starting with the Python 3.7 image.
+  - Set the working directory to /code.
+  - Set environment variables used by the flask command.
+  - Install gcc and other dependencies
+  - Copy requirements.txt and install the Python dependencies.
+  - Add metadata to the image to describe that the container is listening on port 5000
+  - Copy the current directory . in the project to the workdir . in the image
+    - 현재 디렉토리에 존재하는 ``app.py, Dockerfile, requirements.txt``이 container 내부의 ``/code``로 복사
+  - Set the default command for the container to flask run.
+##### Step 3: docker-compose.yml 작성
+- Define services in a compose file
+```bash
+gusami@docker-ubuntu:~/composetest$cat > docker-compose.yml
+version: "3.9"
+services:
+  web:
+    build: . # 현재 디렉토리의 dockerfile을 기준으로 container image build 요청
+    ports:
+      - "5001:5000"
+  redis:
+    image: "redis:alpine"
+gusami@docker-ubuntu:~/composetest$ls
+Dockerfile  app.py  docker-compose.yml  requirements.txt
+```
+##### Step 4: docker-compose 명령어를 이용한 운영
+```bash
+# build container image and then create and start containers
+gusami@docker-ubuntu:~/composetest$ docker-compose up
+Creating network "composetest_default" with the default driver
+Creating composetest_web_1   ... done
+Creating composetest_redis_1 ... done
+Attaching to composetest_redis_1, composetest_web_1
+redis_1  | 1:C 16 Jan 2022 11:50:34.794 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis_1  | 1:C 16 Jan 2022 11:50:34.794 # Redis version=6.2.6, bits=64, commit=00000000, modified=0, pid=1, just started
+redis_1  | 1:C 16 Jan 2022 11:50:34.794 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+redis_1  | 1:M 16 Jan 2022 11:50:34.794 * monotonic clock: POSIX clock_gettime
+redis_1  | 1:M 16 Jan 2022 11:50:34.795 * Running mode=standalone, port=6379.
+redis_1  | 1:M 16 Jan 2022 11:50:34.795 # Server initialized
+redis_1  | 1:M 16 Jan 2022 11:50:34.795 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+redis_1  | 1:M 16 Jan 2022 11:50:34.796 * Ready to accept connections
+web_1    |  * Serving Flask app 'app.py' (lazy loading)
+web_1    |  * Environment: production
+web_1    |    WARNING: This is a development server. Do not use it in a production deployment.
+web_1    |    Use a production WSGI server instead.
+web_1    |  * Debug mode: off
+web_1    |  * Running on all addresses.
+web_1    |    WARNING: This is a development server. Do not use it in a production deployment.
+web_1    |  * Running on http://172.18.0.2:5000/ (Press CTRL+C to quit)
+```
+- 접속을 통한 테스트
+```bash
+# curl 접속을 통한 동작 확인
+gusami@docker-ubuntu:~$curl localhost:5001
+Hello World! I have been seen 1 times.
+gusami@docker-ubuntu:~$curl localhost:5001
+Hello World! I have been seen 2 times.
+gusami@docker-ubuntu:~$curl localhost:5001
+Hello World! I have been seen 3 times.
+gusami@docker-ubuntu:~$curl localhost:5001
+Hello World! I have been seen 4 times.
+# docker image 확인
+gusami@docker-ubuntu:~$docker image ls
+REPOSITORY                                  TAG          IMAGE ID       CREATED          SIZE
+composetest_web                             latest       8422406b561e   11 minutes ago   185MB
+python                                      3.7-alpine   a1034fd13493   11 minutes ago      41.8MB
+redis                                       alpine       3900abf41552   11 minutes ago      32.4MB
+...
+```
+##### Step 5: Edit the Compose file to add a bind mount
+- docker-compose.yml을 수정을 통한 서비스가 필요하다면?
+  - docker-compose.yml이 있는 디렉토리에서 ``docker-compose``를 통해 containers 중지 및 삭제
+  - 마운트를 위한 ``volumes``와 ``environment`` 속성 추가
+  - 
+```bash
+# docker-compose.yml이 있는 디렉토리로 이동
+gusami@docker-ubuntu:~$cd composetest/
+# docker-compose 중지 및 삭제 처리
+gusami@docker-ubuntu:~/composetest$docker-compose down
+Stopping composetest_redis_1 ... done
+Stopping composetest_web_1   ... done
+Removing composetest_redis_1 ... done
+Removing composetest_web_1   ... done
+Removing network composetest_default
+# docker-compose.yml에 volumes와 environment 속성을 추가
+gusami@docker-ubuntu:~/composetest$vi docker-compose.yml
+version: "3.9"
+services:
+  web:
+    build: .
+    ports:
+      - "5001:5000"
+    volumes:
+      - .:/code # 현재 host 디렉토리의 app.py를 수정하면, container안의 app.py도 같이 수정됨
+    environment:
+      FLASK_ENV: development
+  redis:
+    image: "redis:alpine"
+```
+##### Step 6: Re-build and run the app with Compose
+- demon mode로 실행
+```bash
+gusami@docker-ubuntu:~/composetest$ docker-compose up -d
+Creating network "composetest_default" with the default driver
+Creating composetest_web_1   ... done
+Creating composetest_redis_1 ... done
+```
+- 현재 디렉토리의 docker-compose.yml에 의해서 실행된 docker-compose 목록 보기
+```bash
+gusami@docker-ubuntu:~/composetest$docker-compose ps
+       Name                      Command               State                    Ports                  
+-------------------------------------------------------------------------------------------------------
+composetest_redis_1   docker-entrypoint.sh redis ...   Up      6379/tcp                                
+composetest_web_1     flask run                        Up      0.0.0.0:5001->5000/tcp,:::5001->5000/tcp
+```
+- flask sever에 접속해서 확인
+```bash
+gusami@docker-ubuntu:~/composetest$curl localhost:5001
+Hello World! I have been seen 1 times.
+gusami@docker-ubuntu:~/composetest$curl localhost:5001
+Hello World! I have been seen 2 times.
+gusami@docker-ubuntu:~/composetest$curl localhost:5001
+Hello World! I have been seen 3 times.
+gusami@docker-ubuntu:~/composetest$curl localhost:5001
+Hello World! I have been seen 4 times.
+```
+##### Step 7: Update the application on Host system
+- Host system내의 ``app.py`` 파일의 접속 시, 문구 수정
+```bash 
+gusami@docker-ubuntu:~/composetest$vi app.py
+import time
+import redis
+from flask import Flask
+
+app = Flask(__name__)
+cache = redis.Redis(host='redis', port=6379)
+
+def get_hit_count():
+    retries = 5
+    while True:
+        try:
+            return cache.incr('hits')
+        except redis.exceptions.ConnectionError as exc:
+            if retries == 0:
+                raise exc
+            retries -= 1
+            time.sleep(0.5)
+
+@app.route('/')
+def hello():
+    count = get_hit_count()
+    return 'Hello from Docker! I have been seen {} times.\n'.format(count)
+
+```
+- 접속을 통한 테스트
+  - 바로 반영됨
+```bash    
+gusami@docker-ubuntu:~/composetest$curl localhost:5001
+Hello from Docker! I have been seen 5 times.
+gusami@docker-ubuntu:~/composetest$curl localhost:5001
+Hello from Docker! I have been seen 6 times.
+```
+##### Step 8: Scale In/Out
+- redis db의 개수를 3개로 늘려 보자!!
+  - 단, port forwarding를 하고 있는 container는 scale in/out이 불가능
+```bash
+# 현재의 docker-compose의 container 목록 학인
+gusami@docker-ubuntu:~/composetest$docker-compose ps
+       Name                      Command               State                    Ports                  
+-------------------------------------------------------------------------------------------------------
+composetest_redis_1   docker-entrypoint.sh redis ...   Up      6379/tcp                                
+composetest_web_1     flask run                        Up      0.0.0.0:5001->5000/tcp,:::5001->5000/tcp
+# redis container 개수를 3개로 확장
+gusami@docker-ubuntu:~/composetest$docker-compose scale redis=3
+WARNING: The scale command is deprecated. Use the up command with the --scale flag instead.
+Creating composetest_redis_2 ... done
+Creating composetest_redis_3 ... done
+# 현재의 docker-compose의 container 목록 학인
+gusami@docker-ubuntu:~/composetest$docker-compose ps
+       Name                      Command               State                    Ports                  
+-------------------------------------------------------------------------------------------------------
+composetest_redis_1   docker-entrypoint.sh redis ...   Up      6379/tcp                                
+composetest_redis_2   docker-entrypoint.sh redis ...   Up      6379/tcp                                
+composetest_redis_3   docker-entrypoint.sh redis ...   Up      6379/tcp                                
+composetest_web_1     flask run                        Up      0.0.0.0:5001->5000/tcp,:::5001->5000/tcp
+# redis container 개수를 1개로 축소
+gusami@docker-ubuntu:~/composetest$docker-compose scale redis=1
+WARNING: The scale command is deprecated. Use the up command with the --scale flag instead.
+Stopping and removing composetest_redis_2 ... done
+Stopping and removing composetest_redis_3 ... done
+# 현재의 docker-compose의 container 목록 학인
+gusami@docker-ubuntu:~/composetest$docker-compose ps
+       Name                      Command               State                    Ports                  
+-------------------------------------------------------------------------------------------------------
+composetest_redis_1   docker-entrypoint.sh redis ...   Up      6379/tcp                                
+composetest_web_1     flask run                        Up      0.0.0.0:5001->5000/tcp,:::5001->5000/tcp
+```
+##### Step 9: Experiment with some other commands
+```bash
+# web container에 env 명령어를 실행 (docker exec 명령어와 비슷)
+gusami@docker-ubuntu:~/composetest$docker-compose run web env
+Creating composetest_web_run ... done
+PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOSTNAME=93de040c51f5
+TERM=xterm
+FLASK_ENV=development
+LANG=C.UTF-8
+GPG_KEY=0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D
+PYTHON_VERSION=3.7.12
+PYTHON_PIP_VERSION=21.2.4
+PYTHON_SETUPTOOLS_VERSION=57.5.0
+PYTHON_GET_PIP_URL=https://github.com/pypa/get-pip/raw/3cb8888cc2869620f57d5d2da64da38f516078c7/public/get-pip.py
+PYTHON_GET_PIP_SHA256=c518250e91a70d7b20cceb15272209a4ded2a0c263ae5776f129e0d9b5674309
+FLASK_APP=app.py
+FLASK_RUN_HOST=0.0.0.0
+HOME=/root
+# web container의 log 확인
+gusami@docker-ubuntu:~/composetest$ docker-compose logs web
+Attaching to composetest_web_1
+web_1    |  * Serving Flask app 'app.py' (lazy loading)
+web_1    |  * Environment: development
+web_1    |  * Debug mode: on
+web_1    |  * Running on all addresses.
+web_1    |    WARNING: This is a development server. Do not use it in a production deployment.
+web_1    |  * Running on http://172.19.0.2:5000/ (Press CTRL+C to quit)
+web_1    |  * Restarting with stat
+web_1    |  * Debugger is active!
+web_1    |  * Debugger PIN: 260-862-304
+web_1    | 172.19.0.1 - - [16/Jan/2022 12:19:56] "GET / HTTP/1.1" 200 -
+web_1    | 172.19.0.1 - - [16/Jan/2022 12:19:57] "GET / HTTP/1.1" 200 -
+web_1    | 172.19.0.1 - - [16/Jan/2022 12:19:58] "GET / HTTP/1.1" 200 -
+web_1    | 172.19.0.1 - - [16/Jan/2022 12:19:58] "GET / HTTP/1.1" 200 -
+web_1    |  * Detected change in '/code/app.py', reloading
+web_1    |  * Restarting with stat
+web_1    |  * Debugger is active!
+web_1    |  * Debugger PIN: 260-862-304
+web_1    |  * Detected change in '/code/app.py', reloading
+web_1    |  * Restarting with stat
+web_1    |  * Debugger is active!
+web_1    |  * Debugger PIN: 260-862-304
+web_1    | 172.19.0.1 - - [16/Jan/2022 12:22:18] "GET / HTTP/1.1" 200 -
+web_1    | 172.19.0.1 - - [16/Jan/2022 12:22:20] "GET / HTTP/1.1" 200 -
+# stop containers
+gusami@docker-ubuntu:~/composetest$docker-compose stop
+Stopping composetest_web_1   ... done
+Stopping composetest_redis_1 ... done
+# containers 상태 확인
+gusami@docker-ubuntu:~/composetest$docker-compose ps
+       Name                      Command               State    Ports
+---------------------------------------------------------------------
+composetest_redis_1   docker-entrypoint.sh redis ...   Exit 0        
+composetest_web_1     flask run                        Exit 0
+# start containers 
+gusami@docker-ubuntu:~/composetest$ docker-compose start
+Starting web   ... done
+Starting redis ... done
+# containers 상태 확인
+gusami@docker-ubuntu:~/composetest$docker-compose ps
+       Name                      Command               State                    Ports                  
+-------------------------------------------------------------------------------------------------------
+composetest_redis_1   docker-entrypoint.sh redis ...   Up      6379/tcp                                
+composetest_web_1     flask run                        Up      0.0.0.0:5001->5000/tcp,:::5001->5000/tcp
+# stop and remove containers
+gusami@docker-ubuntu:~/composetest$docker-compose down
+Stopping composetest_web_1   ... done
+Stopping composetest_redis_1 ... done
+Removing composetest_web_run_76f4d7ab3406 ... done
+Removing composetest_web_run_e7d342871db9 ... done
+Removing composetest_web_run_827c4915e1a8 ... done
+Removing composetest_web_1                ... done
+Removing composetest_redis_1              ... done
+Removing network composetest_default
+# containers 상태 확인
+gusami@docker-ubuntu:~/composetest$docker-compose ps
+Name   Command   State   Ports
+------------------------------
+# Create and start containers
+gusami@docker-ubuntu:~/composetest$docker-compose up
+# stop and remove containers
+# --volumes: remove the data volume used by the Redis container
+gusami@docker-ubuntu:~/composetest$docker-compose down --volumes
+Stopping composetest_web_1   ... done
+Stopping composetest_redis_1 ... done
+Removing composetest_web_1   ... done
+Removing composetest_redis_1 ... done
+Removing network composetest_default
+```
+### MySQL 데이터베이스를 사용하는 WordPress 운영하기
+![ComposeAndWordPress](./images/ComposeAndWordPress.png)
+- Quickstart: Compose and WordPress
+  - 링크: https://docs.docker.com/samples/wordpress/
+- WordPress
+  - 웹 페이지와 게시판을 생성해 주는 웹 프로그램
+  - 웹 페이지에서 생성된 데이터는 MySQL에 저장
+#### Step 1: Define the project
+- Create an empty project directory and Change into your project directory
+```bash
+gusami@docker-ubuntu:~$mkdir my_wordpress/
+gusami@docker-ubuntu:~$cd my_wordpress/
+gusami@docker-ubuntu:~/my_wordpress$
+```
+- ``docker-compose.yml`` 파일 생성
+  - starts your ``WordPress`` blog and a separate ``MySQL`` instance with volume mounts for data persistence
+```bash
+gusami@docker-ubuntu:~/my_wordpress$ cat > docker-compose.yml
+version: "3.9"
+    
+services:
+  db:
+    image: mysql:5.7
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: somewordpress
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    
+  wordpress:
+    depends_on:
+      - db  # db container가 먼저 생성되어야 함
+    image: wordpress:latest
+    volumes:
+      - wordpress_data:/var/www/html
+    ports:
+      - "8000:80"
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+volumes:
+  db_data: {}
+  wordpress_data: {}
+```
+#### Step 2: Build the project
+- ``docker-compose.yml``에 등록된 container들을 생성하고 시작
+```bash
+# create and start containers with the demon mode
+gusami@docker-ubuntu:~/my_wordpress$docker-compose up -d
+Creating network "my_wordpress_default" with the default driver
+Creating volume "my_wordpress_db_data" with default driver
+Creating volume "my_wordpress_wordpress_data" with default driver
+Creating my_wordpress_db_1 ... done
+Creating my_wordpress_wordpress_1 ... done
+# 현재 디렉토리의 docker-compose.yml에 의해 실행된 container 목록 확인
+# port forwarding 상태 확인
+gusami@docker-ubuntu:~/my_wordpress$docker-compose ps
+          Name                        Command               State                  Ports                
+--------------------------------------------------------------------------------------------------------
+my_wordpress_db_1          docker-entrypoint.sh mysqld      Up      3306/tcp, 33060/tcp                 
+my_wordpress_wordpress_1   docker-entrypoint.sh apach ...   Up      0.0.0.0:8000->80/tcp,:::8000->80/tcp
+# host system의 8000 port 상태 확인
+gusami@docker-ubuntu:~/my_wordpress$netstat -ltunp | grep 8000
+(Not all processes could be identified, non-owned process info
+ will not be shown, you would have to be root to see it all.)
+tcp        0      0 0.0.0.0:8000            0.0.0.0:*               LISTEN      -                   
+tcp6       0      0 :::8000                 :::*                    LISTEN      -
+```
+- MySQL의 db data가 저장되는 곳
+  - ``db_data: {}``
+```bash
+root@docker-ubuntu:~#cd /var/lib/docker/volumes/my_wordpress_db_data/_data/
+# wordpress라는 디렉토리가 wordpress data를 저장하는 장소
+root@docker-ubuntu:/var/lib/docker/volumes/my_wordpress_db_data/_data# ls
+auto.cnf    ca.pem           client-key.pem  ib_logfile0  ibdata1  mysql               private_key.pem  server-cert.pem  sys
+ca-key.pem  client-cert.pem  ib_buffer_pool  ib_logfile1  ibtmp1   performance_schema  public_key.pem   server-key.pem   wordpress
+# workpress db data 확인
+root@docker-ubuntu:/var/lib/docker/volumes/my_wordpress_db_data/_data#cd wordpress/
+root@docker-ubuntu:/var/lib/docker/volumes/my_wordpress_db_data/_data/wordpress# ls
+db.opt
+```
+- db container의 로그 정보 확인
+```bash
+gusami@docker-ubuntu:~/my_wordpress$ docker-compose logs db
+Attaching to my_wordpress_db_1
+db_1         | 2022-01-16 12:58:23+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 5.7.36-1debian10 started.
+db_1         | 2022-01-16 12:58:23+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+db_1         | 2022-01-16 12:58:23+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 5.7.36-1debian10 started.
+db_1         | 2022-01-16 12:58:23+00:00 [Note] [Entrypoint]: Initializing database files
+db_1         | 2022-01-16T12:58:23.361663Z 0 [Warning] TIMESTAMP with implicit DEFAULT value is deprecated. Please use --explicit_defaults_for_timestamp server option (see documentation for more details).
+db_1         | 2022-01-16T12:58:23.656064Z 0 [Warning] InnoDB: New log files created, LSN=45790
+db_1         | 2022-01-16T12:58:23.689203Z 0 [Warning] InnoDB: Creating foreign key constraint system tables.
+....
+```
+- VirtualBox의 ``docker-network`` NAT Network의 Port Forwarding 규칙 추가
+
+![wordpress_nat](./images/wordpress_nat.png)
+#### Step 3: WordPress 접속, 구성 및 사용
+- Windows에서 접속
+
+![wordpress_localhost](./images/wordpress_localhost.png)
+- Wordpress 설정 및 홈페이지 관리창 접속
+
+![wordpress_homepage](./images/wordpress_homepage.png)
+
+#### Step 4: docker-compose의 container 정리 및 삭제
+```bash
+# stop and remove containers and resources
+# --volumes: remove the data volume used by the MySQL db container
+gusami@docker-ubuntu:~/my_wordpress$ docker-compose down --volumes
+Stopping my_wordpress_wordpress_1 ... done
+Stopping my_wordpress_db_1        ... done
+Removing my_wordpress_wordpress_1 ... done
+Removing my_wordpress_db_1        ... done
+Removing network my_wordpress_default
+Removing volume my_wordpress_db_data
+Removing volume my_wordpress_wordpress_data
+gusami@docker-ubuntu:~/my_wordpress$ su -
+암호:
+# db container를 위해 mount되었던 host의 volume이 삭제됨을 확인 
+root@docker-ubuntu:~#ls /var/lib/docker/volumes/
+0284980da3ce4cc35e4f38741090aa8ffc1bd3464fd4f55a4333febe57bed74c  81d4c22ac7ddc702d8d5d959b289f3b7092bd382b7d054fbf57899f1d1aed925
+304bef9cc04c7c77d705822ae27f88ba77882cd5fb4dd613ace5c8a5e72be8ba  8471a7fd094df84051b86246b5ec715e3677ad2f26852cb847c90ecfb9c292f7
+53e07ad5ca384aac45f4b420ab55c29ead990bb49b45b2a1ff4f7edda7d9c7a1  aab31b2f1195bf2e87184a022a24e753d4f79a20d3b4477c5230aac8a2614224
+5df72990d5de2e2dcf43676c13ab914d3bcf3f95b90777bb8539b327df6f8517  backingFsBlockDev
+5e2207f89cdcf0beec33da4a21b4cddbca9ebe3aa965095ced4e8a2eed9dd353  bbe1d95f63833817d903845963d3340e876060eee4ce940f7a8f674a49e89bb9
+65f8d8348dcc1121c930eba9b966fe1823b4214701ae39a62d89dc006545c4a9  ed293a8d751b08a6e77d5ff5e12213d878e0498629846c73cadd79231873ee47
+6809b4025d600fac03b77eb8c4cbc9a241d45c40e9bafbc3c3ff9e899019a0b0  metadata.db
+69545e3f9e1e6e92ab44e9bd712fcb105b4ae6e22464b9911c3276492b7cba37
+```
+
+## 끝
