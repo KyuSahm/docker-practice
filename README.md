@@ -168,7 +168,7 @@ $sudo vi /etc/hosts
 ....
 # Google DNS(8.8.8.8)를 PING 테스트를 진행해 봄
 $ping -c 3 8.8.8.8
-```  
+```
 - Text 부팅으로 수정: GUI 환경의 부팅은 리소스를 많이 먹고, 속도도 늦음
   - ``$systemctl set-default multi-user.target``
   - 만약, GUI 부팅으로 되돌리고 싶으면, ``$systemctl isolate graphical.target`` 수행
@@ -304,7 +304,7 @@ $yum install -y tree
 - 기존의 설치된 docker old 버전이 있다면 삭제하기
 ```bash
  $sudo apt-get remove docker docker-engine docker.io containerd runc
- ```
+```
 - 설치방법 01: Repository를 이용해서 설치 (우리가 사용)
   - docker를 install할 시스템이 외부 네트워크에 접근이 가능한 경우
 
@@ -323,18 +323,18 @@ $sudo apt-get install \
     curl \
     gnupg \
     lsb-release
-```    
+```
 - Step 02: 인증서를 로컬에 저장
   - docker package들은 인증서를 가지고 디지털 서명이 되어 있음
 ```bash
 $curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-```  
+```
 - Step 03: 다운받은 인증서를 이용해서 URL 등록
 ```bash
 $echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
   $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-```  
+```
 - Step 04: install with ``apt-get command``
   - 새로 등록된 URL을 이용하여 package index를 업데이트: ``sudo apt-get update``
 ```bash
@@ -343,7 +343,7 @@ $sudo apt-get update
 # docker-ce-cli: client command
 # containerd.io: docker engine
 $sudo apt-get install docker-ce docker-ce-cli containerd.io -y
- ```
+```
 - Step 05: 설치가 잘 되었는지 확인
 ```bash
 # 방법1: hello-world image을 다운로드 한 후, 실행
@@ -393,7 +393,7 @@ Server: Docker Engine - Community
                   docker-latest-logrotate \
                   docker-logrotate \
                   docker-engine
- ```
+```
 - 설치방법 01: Repository를 이용해서 설치 (우리가 사용)
   - docker를 install할 시스템이 외부 네트워크에 접근이 가능한 경우
 - 설치방법 02: RPM package Download 후 직접 설치
@@ -406,7 +406,7 @@ Server: Docker Engine - Community
 - Step 01: HTTP를 통해 docker package repository를 사용하기 위한 패키지 설치   
 ```bash
 $yum install -y yum-utils
-```    
+```
 - Step 02: Repository URL을 로컬에 등록
 ```bash
 $yum-config-manager \
@@ -416,7 +416,7 @@ Loaded plugins: fastestmirror, langpacks
 adding repo from: https://download.docker.com/linux/centos/docker-ce.repo
 grabbing file https://download.docker.com/linux/centos/docker-ce.repo to /etc/yum.repos.d/docker-ce.repo
 repo saved to /etc/yum.repos.d/docker-ce.repo
-```  
+```
 - Step 03: install with ``yum install command``
   - 설치 시, 인증서를 가져옴 (Ubuntu와 차이점)
 ```bash
@@ -424,7 +424,7 @@ repo saved to /etc/yum.repos.d/docker-ce.repo
 # docker-ce-cli: client command
 # containerd.io: docker engine
 $yum install docker-ce docker-ce-cli containerd.io -y
- ```
+```
 - Step 04: docker service daemon 시작 및 활성화(Ubuntu와 차이점)
 ```bash
 $systemctl start docker
@@ -671,6 +671,7 @@ REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
     - appjs source image Layer
     - ``run node app.js`` Layer
   
+
 ![docker container image](./images/docker_container_image.png)  
 ### 컨테이너 동작 방식
 - Docker Host와 Docker Hub가 존재
@@ -1759,7 +1760,7 @@ jlesage/nginx-proxy-manager       Docker container for Nginx Proxy Manager      
 alfg/nginx-rtmp                   NGINX, nginx-rtmp-module and FFmpeg from sou…   112                  [OK]
 nginxdemos/hello                  NGINX webserver that serves a simple page co…   80                   [OK]
 ...
-```  
+```
 #### Private Registry 구축하기
 - ``registry Container``를 이용해 Private Container 운영
   - docker hub 사이트 > Explorer > 화면 좌측에 ``Official Image`` 클릭
@@ -2601,7 +2602,7 @@ Commercial support is available at
 UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD
 root                2324                2304                0                   20:28               ?                   00:00:00            nginx: master process nginx -g daemon off;
 101                 2351                2324                0                   20:28               ?                   00:00:00            nginx: worker process
-```  
+```
 - Container에 직접 접속하여 Bash Shell 사용
   - ``docker exec -it <container name> /bin/bash``
   - ``-i``: interactive
@@ -3186,7 +3187,7 @@ CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT   MEM %     NET I/O     BLO
 cd48b3725b67   cload3    28.22%    220KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
 a8f15a7103fe   cload2    54.18%    224KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
 9529928980ee   cload1    112.25%   216KiB / 3.7GiB     0.01%     656B / 0B   0B / 0B     4
-```  
+```
 ### cAdvisor 설치해서 사용하기
 - Google의 container resource usage monitoring tool
   - https://github.com/google/cadvisor
@@ -3784,7 +3785,7 @@ gusami@docker-ubuntu:~/lab8$ ip addr
        valid_lft forever preferred_lft forever
     inet6 fe80::42:24ff:fe11:6e4/64 scope link 
        valid_lft forever preferred_lft forever
-```  
+```
 ### Container Port를 외부로 노출하는 방법
 - port-forwarding
   - container port를 외부로 노출시켜 외부 연결 허용
@@ -3854,7 +3855,7 @@ Chain DOCKER (2 references)
 gusami@docker-ubuntu:~/lab8$ curl localhost:8080
 Filesystem      Size  Used Avail Use% Mounted on
 overlay          20G   12G  6.9G  62% /    
-```        
+```
 ### Container Network 추가 방법
 ![User_Defined_Network](./images/User_Defined_Network.png)
 - 기본적으로 ``docker0`` 네트워크 안에 있는 container는 static ip를 할당하지 못함
@@ -4162,7 +4163,7 @@ CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS       
 748450ff3727   nginx     "/docker-entrypoint.…"   3 seconds ago    Up 2 seconds    0.0.0.0:49154->80/tcp, :::49154->80/tcp   web3
 9df62fdd1742   nginx     "/docker-entrypoint.…"   24 minutes ago   Up 24 minutes   0.0.0.0:49153->80/tcp, :::49153->80/tcp   web2
 6617ae9047be   nginx     "/docker-entrypoint.…"   39 minutes ago   Up 39 minutes   0.0.0.0:80->80/tcp, :::80->80/tcp         web1
-```  
+```
 ### User defined network 구성
 ```bash
 # docker network 명령어 확인
@@ -4304,7 +4305,10 @@ tcp6       0      0 :::80                   :::*                    LISTEN      
 ![Container_Data_Share_Problem](./images/Container_Data_Share_Problem.png)
 - 문제 1: 다음의 container를 빌드하시오
 ```bash
-$cat genid.sh
+[gusami@docker-centos ~]$mkdir genid
+[gusami@docker-centos ~]$cd genid
+# Shell Script 파일 생성
+[gusami@docker-centos genid]$cat > genid.sh
 #!/bin/bash
 mkdir -p /webdata
 while true
@@ -4312,18 +4316,90 @@ do
   /usr/bin/rig | /usr/bin/boxes -d boy > /webdata/index.html
   sleep 5
 done
-$cat Dockerfile
+# Dockerfile 생성
+[gusami@docker-centos genid]$cat > Dockerfile
 FROM ubuntu:18.04
 RUN apt-get update; apt-get -y install rig boxes
 ADD genid.sh /bin/genid.sh
 RUN chmod +x /bin/genid.sh
 ENTRYPOINT ["/bin/genid.sh"]
-$docker build -t genid .
+# image build genid:1.0 with Dockerfile on current directory
+# genid.sh should be in current directory (옵션: '.')
+[gusami@docker-centos genid]$docker build -t genid:1.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/5 : FROM ubuntu:18.04
+18.04: Pulling from library/ubuntu
+2f94e549220a: Pull complete 
+Digest: sha256:37b7471c1945a2a12e5a57488ee4e3e216a8369d0b9ee1ec2e41db9c2c1e3d22
+Status: Downloaded newer image for ubuntu:18.04
+ ---> 886eca19e611
+Step 2/5 : RUN apt-get update; apt-get -y install rig boxes
+ ---> Running in 71bff5d3c3e5
+Get:1 http://security.ubuntu.com/ubuntu bionic-security InRelease [88.7 kB]
+......
+Successfully built 7fc4f7c988e0
+Successfully tagged genid:1.0
+# list docker container images
+[gusami@docker-centos genid]$docker images
+REPOSITORY                 TAG       IMAGE ID       CREATED          SIZE
+genid                      1.0       7fc4f7c988e0   28 seconds ago   103MB
 ```
-- 문제 2: 빌드 한 container를 이용해서 multi-tier container를 구축하시오
-- genid에서 생성한 index.html은 volume을 통해 nginx의 웹 컨텐츠로 공유되어야 합니다
-- nginx web server는 80 port를 통해 genid가 생성한 html 문서를 고객에게 서비스 합니다
-- 결과: genid는 웹 문서를 생성하고, nginx는 고객에게 서비스하는 형식으로 운영됩니다
+- 문제 2: 빌드한 container를 이용해서 multi-tier container를 구축하시오
+  - genid에서 생성한 index.html은 volume을 통해 nginx의 웹 컨텐츠로 공유
+  - nginx web server는 80 port를 통해 genid가 생성한 html 문서를 고객에게 서비스
+  - 결과적으로, genid는 웹 문서를 생성하고, nginx는 고객에게 서비스하면서 운영
+```bash
+# run genid container with mounting host directory /genid_data mapped /webdata in container
+[gusami@docker-centos genid]$docker run -d -v /genid_data:/webdata --name id_generator genid:1.0 
+72fb98fb4e7034d8df69d38bffc8c3c41124baff14ec355907119fb337214504
+# check if index.html file is generated by genid container application
+[gusami@docker-centos genid]$ ls -al /genid_data
+total 4
+drwxr-xr-x.  2 root root  24 Jan 17 22:01 .
+dr-xr-xr-x. 18 root root 242 Jan 17 22:01 ..
+-rw-r--r--.  1 root root 352 Jan 17 22:01 index.html
+# run nginx container application
+# mount shared directory(/genid_data) into nginx home directory on container
+[gusami@docker-centos genid]$docker run -d --name webserver -v /genid_data:/usr/share/nginx/html:ro -p 80:80 nginx:latest
+2caacdf1b00187c9c549a1e263a21b6a13c1112e9e17aae01c9989a4155eddae
+# check if both genid and nginx container are operating correctly
+[gusami@docker-centos genid]$curl localhost:80
+        .-"""-.
+       / .===. \
+       \/ 6 6 \/
+       ( \___/ )
+  _ooo__\_____/______
+ /                   \
+| Jorge Townsend      |
+| 260 Second St       |
+| Erie, PA  16515     |
+| (814) xxx-xxxx      |
+ \_______________ooo_/
+        |  |  |
+        |_ | _|
+        |  |  |
+        |__|__|
+        /-'Y'-\
+       (__/ \__)
+[gusami@docker-centos genid]$curl localhost:80
+        .-"""-.
+       / .===. \
+       \/ 6 6 \/
+       ( \___/ )
+  _ooo__\_____/______
+ /                   \
+| Ned Bass            |
+| 477 Shalton Dr      |
+| Alton, IL  62002    |
+| (708) xxx-xxxx      |
+ \_______________ooo_/
+        |  |  |
+        |_ | _|
+        |  |  |
+        |__|__|
+        /-'Y'-\
+       (__/ \__)       
+```
 ## docker-compose (빌드에서 운영까지) - 이론편
 ### docker-compose란?
 ![docker_compose](./images/docker_compose.png)
